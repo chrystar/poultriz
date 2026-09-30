@@ -19,6 +19,7 @@ export default function BatchesScreen() {
   const [cost, setCost] = useState('');
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<'active' | 'planned'>('active');
+  const [birdType, setBirdType] = useState<'broiler' | 'layer'>('broiler');
   const [activeTab, setActiveTab] = useState<TabKey>('active');
   const { theme } = useTheme();
 
@@ -64,6 +65,7 @@ export default function BatchesScreen() {
       bird_count: parseInt(birdCount, 10),
       cost: cost ? parseFloat(cost) : 0,
       status: status,
+      bird_type: birdType,
     });
 
     setSaving(false);
@@ -73,7 +75,7 @@ export default function BatchesScreen() {
       return;
     }
 
-    setName(''); setBreed('Broiler'); setSource(''); setBirdCount(''); setCost(''); setStatus('active');
+    setName(''); setBreed('Broiler'); setSource(''); setBirdCount(''); setCost(''); setStatus('active'); setBirdType('broiler');
     setModalVisible(false);
     setActiveTab(status);
     loadBatches();
@@ -260,83 +262,96 @@ export default function BatchesScreen() {
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.modalOverlay}>
-        <TouchableWithoutFeedback>
-          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>New Batch</Text>
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Batch name (e.g. Batch A)" placeholderTextColor={theme.textFaint} value={name} onChangeText={setName} />
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Breed (e.g. Broiler)" placeholderTextColor={theme.textFaint} value={breed} onChangeText={setBreed} />
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Source (e.g. Agrited)" placeholderTextColor={theme.textFaint} value={source} onChangeText={setSource} />
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Number of birds" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={birdCount} onChangeText={setBirdCount} />
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Initial cost (₦)" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={cost} onChangeText={setCost} />
-            <View style={styles.statusToggleRow}>
-              <TouchableOpacity
-                style={[styles.statusChip, status === 'active' && styles.statusChipActive]}
-                onPress={() => setStatus('active')}
-              >
-                <Text style={[styles.statusChipText, status === 'active' && styles.statusChipTextActive]}>Active</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.statusChip, status === 'planned' && styles.statusChipActive]}
-                onPress={() => setStatus('planned')}
-              >
-                <Text style={[styles.statusChipText, status === 'planned' && styles.statusChipTextActive]}>Planned</Text>
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity style={styles.saveButton} onPress={handleAddBatch} disabled={saving}>
-              <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Batch'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-          </TouchableWithoutFeedback>
-        </View>
-        </TouchableWithoutFeedback>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>New Batch</Text>
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Batch name (e.g. Batch A)" placeholderTextColor={theme.textFaint} value={name} onChangeText={setName} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Breed (e.g. Broiler)" placeholderTextColor={theme.textFaint} value={breed} onChangeText={setBreed} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Source (e.g. Agrited)" placeholderTextColor={theme.textFaint} value={source} onChangeText={setSource} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Number of birds" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={birdCount} onChangeText={setBirdCount} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Initial cost (₦)" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={cost} onChangeText={setCost} />
 
-        
+                <Text style={{ color: theme.textMuted, marginBottom: 8, fontSize: 13 }}>Bird Type</Text>
+                <View style={styles.statusToggleRow}>
+                  <TouchableOpacity
+                    style={[styles.statusChip, birdType === 'broiler' && styles.statusChipActive]}
+                    onPress={() => setBirdType('broiler')}
+                  >
+                    <Text style={[styles.statusChipText, birdType === 'broiler' && styles.statusChipTextActive]}>Broiler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.statusChip, birdType === 'layer' && styles.statusChipActive]}
+                    onPress={() => setBirdType('layer')}
+                  >
+                    <Text style={[styles.statusChipText, birdType === 'layer' && styles.statusChipTextActive]}>Layer</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={{ color: theme.textMuted, marginBottom: 8, fontSize: 13 }}>Status</Text>
+                <View style={styles.statusToggleRow}>
+                  <TouchableOpacity
+                    style={[styles.statusChip, status === 'active' && styles.statusChipActive]}
+                    onPress={() => setStatus('active')}
+                  >
+                    <Text style={[styles.statusChipText, status === 'active' && styles.statusChipTextActive]}>Active</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.statusChip, status === 'planned' && styles.statusChipActive]}
+                    onPress={() => setStatus('planned')}
+                  >
+                    <Text style={[styles.statusChipText, status === 'planned' && styles.statusChipTextActive]}>Planned</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.saveButton} onPress={handleAddBatch} disabled={saving}>
+                  <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Batch'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
       </Modal>
 
       <Modal visible={activateModalVisible} animationType="slide" transparent>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-
-        <View style={styles.modalOverlay}>
-        <TouchableWithoutFeedback>
-
-          <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Activate "{activatingBatch?.name}"</Text>
-            <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
-              Confirm or update the actual delivery details before marking this batch active.
-            </Text>
-            <TextInput
-              style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-              placeholder="Number of birds received"
-              placeholderTextColor={theme.textFaint}
-              keyboardType="numeric"
-              value={activateBirdCount}
-              onChangeText={setActivateBirdCount}
-            />
-            <TextInput
-              style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-              placeholder="Actual cost (₦)"
-              placeholderTextColor={theme.textFaint}
-              keyboardType="numeric"
-              value={activateCost}
-              onChangeText={setActivateCost}
-            />
-            <TouchableOpacity style={styles.saveButton} onPress={handleConfirmActivate} disabled={activating}>
-              <Text style={styles.saveButtonText}>{activating ? 'Activating...' : 'Confirm & Activate'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setActivateModalVisible(false)}>
-              <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-            </TouchableOpacity>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Activate "{activatingBatch?.name}"</Text>
+                <Text style={[styles.modalSubtitle, { color: theme.textMuted }]}>
+                  Confirm or update the actual delivery details before marking this batch active.
+                </Text>
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Number of birds received"
+                  placeholderTextColor={theme.textFaint}
+                  keyboardType="numeric"
+                  value={activateBirdCount}
+                  onChangeText={setActivateBirdCount}
+                />
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Actual cost (₦)"
+                  placeholderTextColor={theme.textFaint}
+                  keyboardType="numeric"
+                  value={activateCost}
+                  onChangeText={setActivateCost}
+                />
+                <TouchableOpacity style={styles.saveButton} onPress={handleConfirmActivate} disabled={activating}>
+                  <Text style={styles.saveButtonText}>{activating ? 'Activating...' : 'Confirm & Activate'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setActivateModalVisible(false)}>
+                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-          </TouchableWithoutFeedback>
-
-        </View>
         </TouchableWithoutFeedback>
-
       </Modal>
     </SafeAreaView>
   );

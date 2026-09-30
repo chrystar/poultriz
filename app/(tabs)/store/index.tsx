@@ -103,34 +103,34 @@ export default function StoreHomeScreen() {
 
       <FlatList
         data={visibleCards}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          activeTab === 'active' ? (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
-              onPress={() => router.push('/(tabs)/store/general')}
-            >
-              <View style={styles.topRow}>
-                <Text style={[styles.cardName, { color: theme.text }]}>General</Text>
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>Unlinked</Text>
-                </View>
-              </View>
-              <Text style={[styles.cardSub, { color: theme.textMuted }]}>Sales not tied to a batch</Text>
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              <View style={styles.statsRow}>
-                <View>
-                  <View style={styles.statLabelRow}>
-                    <Ionicons name="cash-outline" size={14} color={theme.textMuted} />
-                    <Text style={[styles.statLabel, { color: theme.textMuted }]}>Revenue</Text>
-                  </View>
-                  <Text style={[styles.statValue, { color: theme.accentDark }]}>₦{generalTotal.toLocaleString()}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-              </View>
-            </TouchableOpacity>
-          ) : null
-        }
+        // keyExtractor={(item) => item.id}
+        // ListHeaderComponent={
+        //   activeTab === 'active' ? (
+        //     <TouchableOpacity
+        //       style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
+        //       onPress={() => router.push('/(tabs)/store/general')}
+        //     >
+        //       <View style={styles.topRow}>
+        //         <Text style={[styles.cardName, { color: theme.text }]}>General</Text>
+        //         <View style={styles.tag}>
+        //           <Text style={styles.tagText}>Unlinked</Text>
+        //         </View>
+        //       </View>
+        //       <Text style={[styles.cardSub, { color: theme.textMuted }]}>Sales not tied to a batch</Text>
+        //       <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        //       <View style={styles.statsRow}>
+        //         <View>
+        //           <View style={styles.statLabelRow}>
+        //             <Ionicons name="cash-outline" size={14} color={theme.textMuted} />
+        //             <Text style={[styles.statLabel, { color: theme.textMuted }]}>Revenue</Text>
+        //           </View>
+        //           <Text style={[styles.statValue, { color: theme.accentDark }]}>₦{generalTotal.toLocaleString()}</Text>
+        //         </View>
+        //         <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        //       </View>
+        //     </TouchableOpacity>
+        //   ) : null
+        // }
         ListEmptyComponent={
           <EmptyState
             icon={activeTab === 'planned' ? 'time-outline' : activeTab === 'completed' ? 'checkmark-done-outline' : 'file-tray-outline'}

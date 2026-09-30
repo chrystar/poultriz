@@ -9,17 +9,20 @@
       "ios": {
         "simulator": false
       },
-      "node": "22.11.0"
+      "node": "22.11.0",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
-      "node": "22.11.0"
+      "node": "22.11.0",
+      "channel": "preview"
     },
     "production": {
-        "android": {
-          "buildType": "apk"
-        },
-      "node": "22.11.0"
+      "android": {
+        "buildType": "apk"
+      },
+      "node": "22.11.0",
+      "channel": "production"
     }
   },
   "submit": {

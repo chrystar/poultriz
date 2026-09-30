@@ -59,7 +59,9 @@ export default function HomeScreen() {
       setCompletedBatches(completed.length);
       setCompletedBatchList(completed as Batch[]);
 
-      const meds: BatchMedication[] = active.map((b) => {
+      const meds: BatchMedication[] = active
+      .filter((b) => b.bird_type !== 'layer')
+      .map((b) => {
         const day = Math.floor((new Date().getTime() - new Date(b.start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1;
         return {
           id: b.id,
@@ -69,7 +71,7 @@ export default function HomeScreen() {
           medication: getMedicationForDay(day),
         };
       }).filter((m) => m.day >= 1);
-      setMedications(meds);
+    setMedications(meds);
 
       let totalMortality = 0;
       let totalSold = 0;
@@ -205,9 +207,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           </View>
         </View>
-
-        <MedicationBanner items={medications} />
-
+        <MedicationBanner items={medications} onPress={() => router.push('/medication-schedule')} />
 
         <View style={styles.statsGrid}>
           <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>

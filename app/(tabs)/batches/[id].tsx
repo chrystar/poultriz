@@ -4,12 +4,14 @@ import * as Print from 'expo-print';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EmptyState from '../../../components/EmptyState';
 import LoadingState from '../../../components/LoadingState';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
+
+const DEFAULT_CRATE_SIZE = 30;
 
 export default function BatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -20,6 +22,7 @@ export default function BatchDetailScreen() {
   const [expenses, setExpenses] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [feedLogs, setFeedLogs] = useState<any[]>([]);
+  const [eggLogs, setEggLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
@@ -37,6 +40,18 @@ export default function BatchDetailScreen() {
   const [feedCost, setFeedCost] = useState('');
   const [feedNotes, setFeedNotes] = useState('');
   const [savingFeed, setSavingFeed] = useState(false);
+
+  // Egg Log form state
+  const [eggModalVisible, setEggModalVisible] = useState(false);
+  const [eggCrates, setEggCrates] = useState('');
+  const [eggCrateSize, setEggCrateSize] = useState(String(DEFAULT_CRATE_SIZE));
+  const [eggLoose, setEggLoose] = useState('');
+  const [eggSmall, setEggSmall] = useState('');
+  const [eggMedium, setEggMedium] = useState('');
+  const [eggLarge, setEggLarge] = useState('');
+  const [eggCracked, setEggCracked] = useState('');
+  const [eggNotes, setEggNotes] = useState('');
+  const [savingEgg, setSavingEgg] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -71,6 +86,13 @@ export default function BatchDetailScreen() {
       .order('log_date', { ascending: false });
     setFeedLogs(feedData ?? []);
 
+    const { data: eggData } = await supabase
+      .from('egg_logs')
+      .select('*')
+      .eq('batch_id', id)
+      .order('log_date', { ascending: false });
+    setEggLogs(eggData ?? []);
+
     setLoading(false);
   }
 
@@ -82,6 +104,10 @@ export default function BatchDetailScreen() {
     () => feedLogs.reduce((sum, f) => sum + Number(f.cost ?? 0), 0),
     [feedLogs]
   );
+
+  const totalEggs = useMemo(() => eggLogs.reduce((sum, e) => sum + Number(e.total_eggs), 0), [eggLogs]);
+  const totalEggCrates = useMemo(() => totalEggs / DEFAULT_CRATE_SIZE, [totalEggs]);
+  const totalCracked = useMemo(() => eggLogs.reduce((sum, e) => sum + Number(e.cracked_count ?? 0), 0), [eggLogs]);
 
   async function handleAddRecord() {
     const today = new Date().toISOString().split('T')[0];
@@ -206,6 +232,54 @@ export default function BatchDetailScreen() {
     ]);
   }
 
+  async function handleAddEggLog() {
+    const cratesNum = eggCrates ? parseFloat(eggCrates) : 0;
+    const crateSizeNum = eggCrateSize ? parseFloat(eggCrateSize) : DEFAULT_CRATE_SIZE;
+    const looseNum = eggLoose ? parseFloat(eggLoose) : 0;
+
+    if (cratesNum <= 0 && looseNum <= 0) {
+      Alert.alert('Error', 'Enter crates and/or loose eggs collected');
+      return;
+    }
+
+    setSavingEgg(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const today = new Date().toISOString().split('T')[0];
+    const totalEggsNum = cratesNum * crateSizeNum + looseNum;
+
+    const { error } = await supabase.from('egg_logs').insert({
+      user_id: user?.id,
+      batch_id: id,
+      log_date: today,
+      crates: cratesNum,
+      crate_size: crateSizeNum,
+      loose_eggs: looseNum,
+      total_eggs: totalEggsNum,
+      small_count: eggSmall ? parseFloat(eggSmall) : 0,
+      medium_count: eggMedium ? parseFloat(eggMedium) : 0,
+      large_count: eggLarge ? parseFloat(eggLarge) : 0,
+      cracked_count: eggCracked ? parseFloat(eggCracked) : 0,
+      notes: eggNotes || null,
+    });
+
+    setSavingEgg(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+
+    setEggCrates(''); setEggCrateSize(String(DEFAULT_CRATE_SIZE)); setEggLoose('');
+    setEggSmall(''); setEggMedium(''); setEggLarge(''); setEggCracked(''); setEggNotes('');
+    setEggModalVisible(false);
+    loadDetail();
+  }
+
+  async function handleDeleteEggLog(logId: string) {
+    await supabase.from('egg_logs').delete().eq('id', logId);
+    loadDetail();
+  }
+
   async function handleExportPDF() {
     const { data: fullExpenses } = await supabase
       .from('expenses')
@@ -227,6 +301,12 @@ export default function BatchDetailScreen() {
 
     const { data: fullFeedLogs } = await supabase
       .from('feed_logs')
+      .select('*')
+      .eq('batch_id', id)
+      .order('log_date', { ascending: false });
+
+    const { data: fullEggLogs } = await supabase
+      .from('egg_logs')
       .select('*')
       .eq('batch_id', id)
       .order('log_date', { ascending: false });
@@ -273,6 +353,23 @@ export default function BatchDetailScreen() {
         </tr>`)
       .join('');
 
+    const eggRows = (fullEggLogs ?? [])
+      .map((e) => `
+        <tr>
+          <td>${e.log_date}</td>
+          <td>${e.crates} crates + ${e.loose_eggs} loose</td>
+          <td>${e.total_eggs}</td>
+          <td>${e.cracked_count ? e.cracked_count : '-'}</td>
+        </tr>`)
+      .join('');
+
+    const eggSection = batch.bird_type === 'layer' ? `
+          <h2 style="color:#4CAF50;">Egg Log</h2>
+          <table style="width:100%; border-collapse: collapse; margin-bottom: 24px;" border="1" cellpadding="8">
+            <thead style="background:#F2F2F2;"><tr><th>Date</th><th>Collected</th><th>Total Eggs</th><th>Cracked</th></tr></thead>
+            <tbody>${eggRows || '<tr><td colspan="4">No eggs logged</td></tr>'}</tbody>
+          </table>` : '';
+
     const html = `
       <html>
         <body style="font-family: -apple-system, sans-serif; padding: 24px; color: #222;">
@@ -281,6 +378,7 @@ export default function BatchDetailScreen() {
 
           <table style="width:100%; border-collapse: collapse; margin-bottom: 24px;" border="1" cellpadding="8">
             <tr><td><strong>Breed</strong></td><td>${batch.breed}</td></tr>
+            <tr><td><strong>Bird Type</strong></td><td>${batch.bird_type === 'layer' ? 'Layer' : 'Broiler'}</td></tr>
             <tr><td><strong>Source</strong></td><td>${batch.source || '-'}</td></tr>
             <tr><td><strong>Status</strong></td><td>${batch.status}</td></tr>
             <tr><td><strong>Bird Count</strong></td><td>${batch.bird_count}</td></tr>
@@ -302,7 +400,7 @@ export default function BatchDetailScreen() {
             <thead style="background:#F2F2F2;"><tr><th>Date</th><th>Feed</th><th>Bags</th><th>Total</th><th>Cost</th></tr></thead>
             <tbody>${feedRows || '<tr><td colspan="5">No feed logged</td></tr>'}</tbody>
           </table>
-
+          ${eggSection}
           <h2 style="color:#4CAF50;">Daily Records</h2>
           <table style="width:100%; border-collapse: collapse; margin-bottom: 24px;" border="1" cellpadding="8">
             <thead style="background:#F2F2F2;"><tr><th>Date</th><th>Mortality</th><th>Avg Weight</th><th>Notes</th></tr></thead>
@@ -339,6 +437,7 @@ export default function BatchDetailScreen() {
 
   const daysSince = Math.floor((new Date().getTime() - new Date(batch.start_date).getTime()) / (1000 * 60 * 60 * 24));
   const profit = totalRevenue - totalExpenses - (batch.cost ?? 0);
+  const isLayer = batch.bird_type === 'layer';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -353,8 +452,13 @@ export default function BatchDetailScreen() {
         <View style={[styles.infoCard, { backgroundColor: theme.cardBackgroundAlt }]}>
           <View style={styles.infoTopRow}>
             <Text style={[styles.infoSource, { color: theme.textMuted }]}>{batch.source || 'No source listed'}</Text>
-            <View style={styles.breedTag}>
-              <Text style={styles.breedTagText}>{batch.breed}</Text>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              <View style={[styles.breedTag, isLayer && { backgroundColor: '#D6E9FF' }]}>
+                <Text style={[styles.breedTagText, isLayer && { color: '#1565C0' }]}>{isLayer ? 'Layer' : 'Broiler'}</Text>
+              </View>
+              <View style={styles.breedTag}>
+                <Text style={styles.breedTagText}>{batch.breed}</Text>
+              </View>
             </View>
           </View>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
@@ -443,6 +547,58 @@ export default function BatchDetailScreen() {
           ))
         )}
 
+        {/* Egg Log — layer batches only */}
+        {isLayer && (
+          <>
+            <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Egg Log</Text>
+              <TouchableOpacity style={styles.addRecordButton} onPress={() => setEggModalVisible(true)}>
+                <Ionicons name="add" size={16} color="#222" />
+                <Text style={styles.addRecordText}>Add Eggs</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.feedSummaryCard, { backgroundColor: theme.cardBackgroundAlt }]}>
+              <View style={styles.financeItem}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Total Eggs</Text>
+                <Text style={[styles.statValue, { color: theme.text }]}>{totalEggs}</Text>
+              </View>
+              <View style={styles.financeItem}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Crates (≈30)</Text>
+                <Text style={[styles.statValue, { color: theme.text }]}>{totalEggCrates.toFixed(1)}</Text>
+              </View>
+              <View style={styles.financeItem}>
+                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Cracked</Text>
+                <Text style={[styles.statValue, { color: theme.text }]}>{totalCracked}</Text>
+              </View>
+            </View>
+
+            {eggLogs.length === 0 ? (
+              <EmptyState icon="egg-outline" title="No eggs logged yet" subtitle="Tap 'Add Eggs' after each collection." />
+            ) : (
+              eggLogs.map((e) => (
+                <View key={e.id} style={[styles.recordRow, { backgroundColor: theme.cardBackground }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.recordDate, { color: theme.text }]}>{e.log_date}</Text>
+                    <Text style={[styles.recordMortality, { color: theme.textMuted }]}>
+                      {e.crates} crates + {e.loose_eggs} loose = {e.total_eggs} eggs
+                    </Text>
+                    {(e.small_count || e.medium_count || e.large_count || e.cracked_count) ? (
+                      <Text style={[styles.recordNotes, { color: theme.textFaint }]}>
+                        S:{e.small_count || 0} M:{e.medium_count || 0} L:{e.large_count || 0} Cracked:{e.cracked_count || 0}
+                      </Text>
+                    ) : null}
+                    {e.notes ? <Text style={[styles.recordNotes, { color: theme.textFaint }]}>{e.notes}</Text> : null}
+                  </View>
+                  <TouchableOpacity onPress={() => handleDeleteEggLog(e.id)}>
+                    <Ionicons name="trash-outline" size={18} color={theme.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </>
+        )}
+
         {/* Daily Records */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Records</Text>
@@ -471,7 +627,10 @@ export default function BatchDetailScreen() {
 
         {/* Add Daily Record modal */}
         <Modal visible={recordModalVisible} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+
             <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
               <Text style={[styles.modalTitle, { color: theme.text }]}>Add Daily Record</Text>
               <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
@@ -497,7 +656,11 @@ export default function BatchDetailScreen() {
                 <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
+            </TouchableWithoutFeedback>
+
           </View>
+          </TouchableWithoutFeedback>
+
         </Modal>
 
         {/* Add Feed Log modal */}
@@ -573,6 +736,105 @@ export default function BatchDetailScreen() {
           </View>
         </Modal>
 
+        {/* Add Egg Log modal */}
+        <Modal visible={eggModalVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+              <ScrollView>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Add Eggs</Text>
+                <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
+
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Crates"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggCrates}
+                    onChangeText={setEggCrates}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Eggs/crate"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggCrateSize}
+                    onChangeText={setEggCrateSize}
+                  />
+                </View>
+
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Loose eggs (not a full crate)"
+                  placeholderTextColor={theme.textFaint}
+                  keyboardType="numeric"
+                  value={eggLoose}
+                  onChangeText={setEggLoose}
+                />
+
+                {(eggCrates || eggLoose) ? (
+                  <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: -4 }]}>
+                    = {((parseFloat(eggCrates || '0') * parseFloat(eggCrateSize || String(DEFAULT_CRATE_SIZE))) + parseFloat(eggLoose || '0'))} eggs total
+                  </Text>
+                ) : null}
+
+                <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: 8 }]}>Grading (optional)</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Small"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggSmall}
+                    onChangeText={setEggSmall}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Medium"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggMedium}
+                    onChangeText={setEggMedium}
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Large"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggLarge}
+                    onChangeText={setEggLarge}
+                  />
+                  <TextInput
+                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                    placeholder="Cracked"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={eggCracked}
+                    onChangeText={setEggCracked}
+                  />
+                </View>
+
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Notes (optional)"
+                  placeholderTextColor={theme.textFaint}
+                  value={eggNotes}
+                  onChangeText={setEggNotes}
+                />
+
+                <TouchableOpacity style={styles.saveButton} onPress={handleAddEggLog} disabled={savingEgg}>
+                  <Text style={styles.saveButtonText}>{savingEgg ? 'Saving...' : 'Save Egg Entry'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEggModalVisible(false)}>
+                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
         {datePickerVisible && (
           <DateTimePicker
             value={new Date(batch.start_date)}
@@ -615,12 +877,12 @@ const styles = StyleSheet.create({
   recordMortality: { marginTop: 2 },
   recordNotes: { marginTop: 2, fontSize: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '85%' },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
   modalSubtitle: { marginBottom: 16, marginTop: 2 },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 },
   saveButton: { backgroundColor: '#B9E37D', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   saveButtonText: { fontWeight: '600' },
-  cancelText: { textAlign: 'center', marginTop: 16 },
+  cancelText: { textAlign: 'center', marginTop: 16, marginBottom: 8 },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
 });

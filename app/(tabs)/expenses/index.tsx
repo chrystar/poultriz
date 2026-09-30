@@ -81,7 +81,6 @@ export default function ExpensesHomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>      
     <Text style={[styles.headerTitle, { color: theme.text }]}>Expenses</Text>
-
       <View style={styles.tabRow}>
         {(['active', 'planned', 'completed'] as TabKey[]).map((tab) => (
           <TouchableOpacity
@@ -103,34 +102,34 @@ export default function ExpensesHomeScreen() {
 
       <FlatList
         data={visibleCards}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          activeTab === 'active' ? (
-            <TouchableOpacity
-              style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
-              onPress={() => router.push('/(tabs)/expenses/general')}
-            >
-              <View style={styles.topRow}>
-                <Text style={[styles.cardName, { color: theme.text }]}>General</Text>
-                <View style={styles.tag}>
-                  <Text style={styles.tagText}>Unlinked</Text>
-                </View>
-              </View>
-              <Text style={[styles.cardSub, { color: theme.textMuted }]}>Expenses not tied to a batch</Text>
-              <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              <View style={styles.statsRow}>
-                <View>
-                  <View style={styles.statLabelRow}>
-                    <Ionicons name="cash-outline" size={14} color={theme.textMuted} />
-                    <Text style={[styles.statLabel, { color: theme.textMuted }]}>Total</Text>
-                  </View>
-                  <Text style={[styles.statValue, { color: theme.text }]}>₦{generalTotal.toLocaleString()}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
-              </View>
-            </TouchableOpacity>
-          ) : null
-        }
+        // keyExtractor={(item) => item.id}
+        // ListHeaderComponent={
+        //   activeTab === 'active' ? (
+        //     <TouchableOpacity
+        //       style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
+        //       onPress={() => router.push('/(tabs)/expenses/general')}
+        //     >
+        //       <View style={styles.topRow}>
+        //         <Text style={[styles.cardName, { color: theme.text }]}>General</Text>
+        //         <View style={styles.tag}>
+        //           <Text style={styles.tagText}>Unlinked</Text>
+        //         </View>
+        //       </View>
+        //       <Text style={[styles.cardSub, { color: theme.textMuted }]}>Expenses not tied to a batch</Text>
+        //       <View style={[styles.divider, { backgroundColor: theme.border }]} />
+        //       <View style={styles.statsRow}>
+        //         <View>
+        //           <View style={styles.statLabelRow}>
+        //             <Ionicons name="cash-outline" size={14} color={theme.textMuted} />
+        //             <Text style={[styles.statLabel, { color: theme.textMuted }]}>Total</Text>
+        //           </View>
+        //           <Text style={[styles.statValue, { color: theme.text }]}>₦{generalTotal.toLocaleString()}</Text>
+        //         </View>
+        //         <Ionicons name="chevron-forward" size={18} color={theme.textMuted} />
+        //       </View>
+        //     </TouchableOpacity>
+        //   ) : null
+        // }
         ListEmptyComponent={
           <EmptyState
             icon={activeTab === 'planned' ? 'time-outline' : activeTab === 'completed' ? 'checkmark-done-outline' : 'file-tray-outline'}

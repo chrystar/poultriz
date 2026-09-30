@@ -3,7 +3,7 @@ import * as Print from 'expo-print';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
@@ -130,7 +130,8 @@ export default function BatchSalesScreen() {
   const costPerBird = batch?.bird_count > 0 ? (initialCost + totalExpenses) / batch.bird_count : 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>           <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>  
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
@@ -209,7 +210,10 @@ export default function BatchSalesScreen() {
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" transparent>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback>
+
           <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Record Sale</Text>
             <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Item (e.g. Live birds, Eggs)" placeholderTextColor={theme.textFaint} value={item} onChangeText={setItem} />
@@ -223,7 +227,10 @@ export default function BatchSalesScreen() {
               <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          </TouchableWithoutFeedback>
+
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </SafeAreaView>
   );

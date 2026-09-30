@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 export type BatchMedication = {
@@ -10,16 +10,21 @@ export type BatchMedication = {
   medication: string;
 };
 
-export default function MedicationBanner({ items }: { items: BatchMedication[] }) {
+export default function MedicationBanner({ items, onPress }: { items: BatchMedication[]; onPress?: () => void }) {
   const { theme } = useTheme();
 
   if (items.length === 0) return null;
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}>
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
+    >
       <View style={styles.headerRow}>
         <Ionicons name="medkit-outline" size={18} color={theme.accentDark} />
         <Text style={[styles.title, { color: theme.text }]}>Today's Medication</Text>
+        <Ionicons name="chevron-forward" size={16} color={theme.textMuted} style={{ marginLeft: 'auto' }} />
       </View>
 
       {items.map((item) => (
@@ -35,7 +40,7 @@ export default function MedicationBanner({ items }: { items: BatchMedication[] }
           </View>
         </View>
       ))}
-    </View>
+    </TouchableOpacity>
   );
 }
 
