@@ -21,6 +21,7 @@ export default function BatchesScreen() {
   const [status, setStatus] = useState<'active' | 'planned'>('active');
   const [birdType, setBirdType] = useState<'broiler' | 'layer'>('broiler');
   const [activeTab, setActiveTab] = useState<TabKey>('active');
+  const [userLimits, setUserLimits] = useState<any>(null);
   const { theme } = useTheme();
 
   // Activation modal (planned -> active, editable bird count/cost)
@@ -30,15 +31,44 @@ export default function BatchesScreen() {
   const [activateCost, setActivateCost] = useState('');
   const [activating, setActivating] = useState(false);
 
+  // Edit Batch modal
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editBreed, setEditBreed] = useState('');
+  const [editSource, setEditSource] = useState('');
+  const [editBirdType, setEditBirdType] = useState<'broiler' | 'layer'>('broiler');
+  const [editBirdCount, setEditBirdCount] = useState('');
+  const [editCost, setEditCost] = useState('');
+  const [editSaving, setEditSaving] = useState(false);
+
   useFocusEffect(
     useCallback(() => {
       loadBatches();
+      loadUserLimits();
     }, [])
   );
 
   async function loadBatches() {
     const { data } = await supabase.from('batches').select('*').order('created_at', { ascending: false });
     setBatches(data ?? []);
+  }
+
+  async function loadUserLimits() {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase
+      .from('user_limits')
+      .select('*')
+      .eq('user_id', user?.id)
+      .single();
+    setUserLimits(data);
+  }
+
+  function canCreateBatch() {
+    if (!userLimits) return true;
+    const withinQuota = userLimits.batches_created_count < userLimits.batch_quota;
+    const withinWindow = !userLimits.plan || new Date(userLimits.access_until) > new Date();
+    return withinQuota && withinWindow;
   }
 
   function daysSince(startDate: string) {
@@ -68,21 +98,29 @@ export default function BatchesScreen() {
       bird_type: birdType,
     });
 
-    setSaving(false);
-
     if (error) {
+      setSaving(false);
+      if (error.message.includes('row-level security') || error.message.includes('policy')) {
+        setModalVisible(false);
+        router.push('/paywall');
+        return;
+      }
       Alert.alert('Error', error.message);
       return;
     }
 
+    setSaving(false);
     setName(''); setBreed('Broiler'); setSource(''); setBirdCount(''); setCost(''); setStatus('active'); setBirdType('broiler');
     setModalVisible(false);
     setActiveTab(status);
     loadBatches();
+    loadUserLimits();
   }
 
   function handleLongPress(item: any) {
     const options: { label: string; action: () => void }[] = [];
+
+    options.push({ label: 'Edit Batch', action: () => openEditModal(item) });
 
     if (item.status === 'planned') {
       options.push({ label: 'Mark as Active', action: () => openActivateModal(item) });
@@ -94,7 +132,7 @@ export default function BatchesScreen() {
 
     Alert.alert(
       item.name,
-      'Change batch status, or delete this batch?',
+      'Edit, change status, or delete this batch?',
       [
         ...options.map((opt) => ({ text: opt.label, onPress: opt.action })),
         {
@@ -105,6 +143,48 @@ export default function BatchesScreen() {
         { text: 'Cancel', style: 'cancel' as const },
       ]
     );
+  }
+
+  function openEditModal(item: any) {
+    setEditingBatch(item);
+    setEditName(item.name ?? '');
+    setEditBreed(item.breed ?? '');
+    setEditSource(item.source ?? '');
+    setEditBirdType(item.bird_type === 'layer' ? 'layer' : 'broiler');
+    setEditBirdCount(String(item.bird_count ?? ''));
+    setEditCost(String(item.cost ?? '0'));
+    setEditModalVisible(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!editName || !editBirdCount) {
+      Alert.alert('Error', 'Please fill in batch name and bird count');
+      return;
+    }
+
+    setEditSaving(true);
+    const { error } = await supabase
+      .from('batches')
+      .update({
+        name: editName,
+        breed: editBreed,
+        source: editSource,
+        bird_type: editBirdType,
+        bird_count: parseInt(editBirdCount, 10),
+        cost: editCost ? parseFloat(editCost) : 0,
+      })
+      .eq('id', editingBatch.id);
+
+    setEditSaving(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+
+    setEditModalVisible(false);
+    setEditingBatch(null);
+    loadBatches();
   }
 
   function openActivateModal(item: any) {
@@ -256,11 +336,21 @@ export default function BatchesScreen() {
         )}
       />
 
-      <TouchableOpacity style={styles.newBatchButton} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity
+        style={styles.newBatchButton}
+        onPress={() => {
+          if (canCreateBatch()) {
+            setModalVisible(true);
+          } else {
+            router.push('/paywall');
+          }
+        }}
+      >
         <Ionicons name="add" size={20} color="#222" />
         <Text style={styles.newBatchText}>New Batch</Text>
       </TouchableOpacity>
 
+      {/* New Batch modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
@@ -317,6 +407,7 @@ export default function BatchesScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
+      {/* Activate modal */}
       <Modal visible={activateModalVisible} animationType="slide" transparent>
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={styles.modalOverlay}>
@@ -346,6 +437,47 @@ export default function BatchesScreen() {
                   <Text style={styles.saveButtonText}>{activating ? 'Activating...' : 'Confirm & Activate'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setActivateModalVisible(false)}>
+                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Edit Batch modal */}
+      <Modal visible={editModalVisible} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Edit Batch</Text>
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Batch name" placeholderTextColor={theme.textFaint} value={editName} onChangeText={setEditName} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Breed" placeholderTextColor={theme.textFaint} value={editBreed} onChangeText={setEditBreed} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Source" placeholderTextColor={theme.textFaint} value={editSource} onChangeText={setEditSource} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Number of birds" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={editBirdCount} onChangeText={setEditBirdCount} />
+                <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Cost (₦)" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={editCost} onChangeText={setEditCost} />
+
+                <Text style={{ color: theme.textMuted, marginBottom: 8, fontSize: 13 }}>Bird Type</Text>
+                <View style={styles.statusToggleRow}>
+                  <TouchableOpacity
+                    style={[styles.statusChip, editBirdType === 'broiler' && styles.statusChipActive]}
+                    onPress={() => setEditBirdType('broiler')}
+                  >
+                    <Text style={[styles.statusChipText, editBirdType === 'broiler' && styles.statusChipTextActive]}>Broiler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.statusChip, editBirdType === 'layer' && styles.statusChipActive]}
+                    onPress={() => setEditBirdType('layer')}
+                  >
+                    <Text style={[styles.statusChipText, editBirdType === 'layer' && styles.statusChipTextActive]}>Layer</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity style={styles.saveButton} onPress={handleSaveEdit} disabled={editSaving}>
+                  <Text style={styles.saveButtonText}>{editSaving ? 'Saving...' : 'Save Changes'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEditModalVisible(false)}>
                   <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
