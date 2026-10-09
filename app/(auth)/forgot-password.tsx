@@ -17,7 +17,7 @@ export default function ForgotPasswordScreen() {
     }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'https://YOUR-LANDING-PAGE-URL/reset-password',
+      redirectTo: 'poultriz://reset-password',
     });
     setLoading(false);
 
@@ -41,7 +41,7 @@ export default function ForgotPasswordScreen() {
           {sent ? (
             <>
               <Text style={styles.subtitle}>
-                Check your email. We've sent a link to reset your password.
+                Check your email. We&apos;ve sent a link to reset your password.
               </Text>
               <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
                 <Text style={styles.buttonText}>Back to Login</Text>
@@ -50,7 +50,7 @@ export default function ForgotPasswordScreen() {
           ) : (
             <>
               <Text style={styles.subtitle}>
-                Enter the email you signed up with. We'll send you a link to set a new password.
+                Enter the email you signed up with. We&apos;ll send you a link to set a new password.
               </Text>
 
               <View style={styles.inputWrapper}>

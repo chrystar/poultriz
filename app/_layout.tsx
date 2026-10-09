@@ -102,8 +102,9 @@ export default function RootLayout() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const isPasswordReset = segments[0] === 'reset-password';
 
-    if (!session && !inAuthGroup) {
+    if (!session && !inAuthGroup && !isPasswordReset) {
       router.replace('/(auth)/login');
     } else if (session && inAuthGroup) {
       router.replace('/');
