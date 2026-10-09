@@ -5,6 +5,7 @@ import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, Tou
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../lib/supabase';
 
+
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,6 +74,7 @@ export default function SignUpScreen() {
               <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#999" />
             </TouchableOpacity>
           </View>
+
 
           <TouchableOpacity style={styles.button} onPress={handleSignUp} disabled={loading}>
             <Text style={styles.buttonText}>{loading ? 'Creating account...' : 'Sign Up'}</Text>

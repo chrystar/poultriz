@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Print from 'expo-print';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import EmptyState from '../../../components/EmptyState';
 import LoadingState from '../../../components/LoadingState';
+import LogSummaryCard from '../../../components/LogSummaryCard';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 
@@ -70,7 +70,7 @@ export default function BatchDetailScreen() {
       .select('*')
       .eq('batch_id', id)
       .order('record_date', { ascending: false })
-      .limit(10);
+      .order('created_at', { ascending: false });
     setRecords(recordData ?? []);
 
     const { data: expenseData } = await supabase.from('expenses').select('amount').eq('batch_id', id);
@@ -83,14 +83,16 @@ export default function BatchDetailScreen() {
       .from('feed_logs')
       .select('*')
       .eq('batch_id', id)
-      .order('log_date', { ascending: false });
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false });
     setFeedLogs(feedData ?? []);
 
     const { data: eggData } = await supabase
       .from('egg_logs')
       .select('*')
       .eq('batch_id', id)
-      .order('log_date', { ascending: false });
+      .order('log_date', { ascending: false })
+      .order('created_at', { ascending: false });
     setEggLogs(eggData ?? []);
 
     setLoading(false);
@@ -104,10 +106,10 @@ export default function BatchDetailScreen() {
     () => feedLogs.reduce((sum, f) => sum + Number(f.cost ?? 0), 0),
     [feedLogs]
   );
-
   const totalEggs = useMemo(() => eggLogs.reduce((sum, e) => sum + Number(e.total_eggs), 0), [eggLogs]);
   const totalEggCrates = useMemo(() => totalEggs / DEFAULT_CRATE_SIZE, [totalEggs]);
   const totalCracked = useMemo(() => eggLogs.reduce((sum, e) => sum + Number(e.cracked_count ?? 0), 0), [eggLogs]);
+  const totalDeaths = useMemo(() => records.reduce((sum, r) => sum + Number(r.mortality_count ?? 0), 0), [records]);
 
   async function handleAddRecord() {
     const today = new Date().toISOString().split('T')[0];
@@ -142,11 +144,6 @@ export default function BatchDetailScreen() {
       Alert.alert('Error', error.message);
       return;
     }
-    loadDetail();
-  }
-
-  async function handleDeleteRecord(recordId: string) {
-    await supabase.from('daily_records').delete().eq('id', recordId);
     loadDetail();
   }
 
@@ -215,23 +212,6 @@ export default function BatchDetailScreen() {
     loadDetail();
   }
 
-  async function handleDeleteFeedLog(log: any) {
-    Alert.alert('Delete Feed Entry', 'This will also remove its matching expense entry, if any.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          if (log.expense_id) {
-            await supabase.from('expenses').delete().eq('id', log.expense_id);
-          }
-          await supabase.from('feed_logs').delete().eq('id', log.id);
-          loadDetail();
-        },
-      },
-    ]);
-  }
-
   async function handleAddEggLog() {
     const cratesNum = eggCrates ? parseFloat(eggCrates) : 0;
     const crateSizeNum = eggCrateSize ? parseFloat(eggCrateSize) : DEFAULT_CRATE_SIZE;
@@ -272,11 +252,6 @@ export default function BatchDetailScreen() {
     setEggCrates(''); setEggCrateSize(String(DEFAULT_CRATE_SIZE)); setEggLoose('');
     setEggSmall(''); setEggMedium(''); setEggLarge(''); setEggCracked(''); setEggNotes('');
     setEggModalVisible(false);
-    loadDetail();
-  }
-
-  async function handleDeleteEggLog(logId: string) {
-    await supabase.from('egg_logs').delete().eq('id', logId);
     loadDetail();
   }
 
@@ -438,6 +413,16 @@ export default function BatchDetailScreen() {
   const daysSince = Math.floor((new Date().getTime() - new Date(batch.start_date).getTime()) / (1000 * 60 * 60 * 24));
   const profit = totalRevenue - totalExpenses - (batch.cost ?? 0);
   const isLayer = batch.bird_type === 'layer';
+  const mortalityRate = batch.bird_count > 0 ? (totalDeaths / batch.bird_count) * 100 : 0;
+
+  const lastFeed = feedLogs[0];
+  const lastEgg = eggLogs[0];
+  const lastRecord = records[0];
+  const latestFeed = lastFeed ? `${lastFeed.log_date} • ${lastFeed.bag_count} × ${lastFeed.bag_size_kg}kg` : null;
+  const latestEgg = lastEgg ? `${lastEgg.log_date} • ${lastEgg.total_eggs} eggs` : null;
+  const latestRecord = lastRecord
+    ? `${lastRecord.record_date} • ${lastRecord.mortality_count} death${Number(lastRecord.mortality_count) === 1 ? '' : 's'}`
+    : null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -509,330 +494,275 @@ export default function BatchDetailScreen() {
             <Text style={styles.addRecordText}>Add Feed</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={[styles.feedSummaryCard, { backgroundColor: theme.cardBackgroundAlt }]}>
-          <View style={styles.financeItem}>
-            <Text style={[styles.statLabel, { color: theme.textMuted }]}>Total Fed</Text>
-            <Text style={[styles.statValue, { color: theme.text }]}>{totalFeedKg}kg</Text>
-          </View>
-          <View style={styles.financeItem}>
-            <Text style={[styles.statLabel, { color: theme.textMuted }]}>Bags</Text>
-            <Text style={[styles.statValue, { color: theme.text }]}>{totalFeedBags}</Text>
-          </View>
-          <View style={styles.financeItem}>
-            <Text style={[styles.statLabel, { color: theme.textMuted }]}>Spent</Text>
-            <Text style={[styles.statValue, { color: theme.text }]}>₦{totalFeedCost.toLocaleString()}</Text>
-          </View>
-        </View>
-
-        {feedLogs.length === 0 ? (
-          <EmptyState icon="nutrition-outline" title="No feed logged yet" subtitle="Tap 'Add Feed' when you buy or give out feed." />
-        ) : (
-          feedLogs.map((f) => (
-            <View key={f.id} style={[styles.recordRow, { backgroundColor: theme.cardBackground }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.recordDate, { color: theme.text }]}>
-                  {[f.brand, f.feed_type].filter(Boolean).join(' — ') || 'Feed'}
-                </Text>
-                <Text style={[styles.recordMortality, { color: theme.textMuted }]}>
-                  {f.bag_count} × {f.bag_size_kg}kg = {f.total_kg}kg{f.cost ? ` • ₦${Number(f.cost).toLocaleString()}` : ''}
-                </Text>
-                <Text style={[styles.recordNotes, { color: theme.textFaint }]}>{f.log_date}</Text>
-                {f.notes ? <Text style={[styles.recordNotes, { color: theme.textFaint }]}>{f.notes}</Text> : null}
-              </View>
-              <TouchableOpacity onPress={() => handleDeleteFeedLog(f)}>
-                <Ionicons name="trash-outline" size={18} color={theme.danger} />
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
+        <LogSummaryCard
+          stats={[
+            { label: 'Total Fed', value: `${Number(totalFeedKg.toFixed(2))}kg` },
+            { label: 'Bags', value: String(totalFeedBags) },
+            { label: 'Spent', value: `₦${totalFeedCost.toLocaleString()}` },
+          ]}
+          count={feedLogs.length}
+          latest={latestFeed}
+          emptyText="No feed logged yet. Tap 'Add Feed' when you buy or give out feed."
+          onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
+        />
 
         {/* Egg Log — layer batches only */}
         {isLayer && (
           <>
-            <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+            <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Egg Log</Text>
               <TouchableOpacity style={styles.addRecordButton} onPress={() => setEggModalVisible(true)}>
                 <Ionicons name="add" size={16} color="#222" />
                 <Text style={styles.addRecordText}>Add Eggs</Text>
               </TouchableOpacity>
             </View>
-
-            <View style={[styles.feedSummaryCard, { backgroundColor: theme.cardBackgroundAlt }]}>
-              <View style={styles.financeItem}>
-                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Total Eggs</Text>
-                <Text style={[styles.statValue, { color: theme.text }]}>{totalEggs}</Text>
-              </View>
-              <View style={styles.financeItem}>
-                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Crates (≈30)</Text>
-                <Text style={[styles.statValue, { color: theme.text }]}>{totalEggCrates.toFixed(1)}</Text>
-              </View>
-              <View style={styles.financeItem}>
-                <Text style={[styles.statLabel, { color: theme.textMuted }]}>Cracked</Text>
-                <Text style={[styles.statValue, { color: theme.text }]}>{totalCracked}</Text>
-              </View>
-            </View>
-
-            {eggLogs.length === 0 ? (
-              <EmptyState icon="egg-outline" title="No eggs logged yet" subtitle="Tap 'Add Eggs' after each collection." />
-            ) : (
-              eggLogs.map((e) => (
-                <View key={e.id} style={[styles.recordRow, { backgroundColor: theme.cardBackground }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.recordDate, { color: theme.text }]}>{e.log_date}</Text>
-                    <Text style={[styles.recordMortality, { color: theme.textMuted }]}>
-                      {e.crates} crates + {e.loose_eggs} loose = {e.total_eggs} eggs
-                    </Text>
-                    {(e.small_count || e.medium_count || e.large_count || e.cracked_count) ? (
-                      <Text style={[styles.recordNotes, { color: theme.textFaint }]}>
-                        S:{e.small_count || 0} M:{e.medium_count || 0} L:{e.large_count || 0} Cracked:{e.cracked_count || 0}
-                      </Text>
-                    ) : null}
-                    {e.notes ? <Text style={[styles.recordNotes, { color: theme.textFaint }]}>{e.notes}</Text> : null}
-                  </View>
-                  <TouchableOpacity onPress={() => handleDeleteEggLog(e.id)}>
-                    <Ionicons name="trash-outline" size={18} color={theme.danger} />
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
+            <LogSummaryCard
+              stats={[
+                { label: 'Total Eggs', value: String(totalEggs) },
+                { label: `Crates (≈${DEFAULT_CRATE_SIZE})`, value: totalEggCrates.toFixed(1) },
+                { label: 'Cracked', value: String(totalCracked) },
+              ]}
+              count={eggLogs.length}
+              latest={latestEgg}
+              emptyText="No eggs logged yet. Tap 'Add Eggs' after each collection."
+              onPress={() => router.push({ pathname: '/egg-log', params: { batchId: id } })}
+            />
           </>
         )}
 
         {/* Daily Records */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+        <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Records</Text>
           <TouchableOpacity style={styles.addRecordButton} onPress={() => setRecordModalVisible(true)}>
             <Ionicons name="add" size={16} color="#222" />
             <Text style={styles.addRecordText}>Add Record</Text>
           </TouchableOpacity>
         </View>
-
-        {records.length === 0 ? (
-          <EmptyState icon="clipboard-outline" title="No daily records yet" subtitle="Tap 'Add Record' to log today's mortality." />
-        ) : (
-          records.map((rec) => (
-            <View key={rec.id} style={[styles.recordRow, { backgroundColor: theme.cardBackground }]}>
-              <View>
-                <Text style={[styles.recordDate, { color: theme.text }]}>{rec.record_date}</Text>
-                <Text style={[styles.recordMortality, { color: theme.textMuted }]}>Mortality: {rec.mortality_count}</Text>
-                {rec.notes ? <Text style={[styles.recordNotes, { color: theme.textFaint }]}>{rec.notes}</Text> : null}
-              </View>
-              <TouchableOpacity onPress={() => handleDeleteRecord(rec.id)}>
-                <Ionicons name="trash-outline" size={18} color={theme.danger} />
-              </TouchableOpacity>
-            </View>
-          ))
-        )}
+        <LogSummaryCard
+          stats={[
+            { label: 'Records', value: String(records.length) },
+            { label: 'Deaths', value: String(totalDeaths) },
+            { label: 'Mortality', value: `${mortalityRate.toFixed(1)}%` },
+          ]}
+          count={records.length}
+          latest={latestRecord}
+          emptyText="No daily records yet. Tap 'Add Record' to log today's mortality."
+          onPress={() => router.push({ pathname: '/daily-records', params: { batchId: id } })}
+        />
 
         {/* Add Daily Record modal */}
         <Modal visible={recordModalVisible} animationType="slide" transparent>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
-
-            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Add Daily Record</Text>
-              <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Number of deaths today"
-                placeholderTextColor={theme.textFaint}
-                keyboardType="numeric"
-                value={mortalityCount}
-                onChangeText={setMortalityCount}
-              />
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Notes (optional)"
-                placeholderTextColor={theme.textFaint}
-                value={notes}
-                onChangeText={setNotes}
-              />
-              <TouchableOpacity style={styles.saveButton} onPress={handleAddRecord} disabled={saving}>
-                <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Record'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setRecordModalVisible(false)}>
-                <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-              </TouchableOpacity>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Add Daily Record</Text>
+                  <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Number of deaths today"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={mortalityCount}
+                    onChangeText={setMortalityCount}
+                  />
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Notes (optional)"
+                    placeholderTextColor={theme.textFaint}
+                    value={notes}
+                    onChangeText={setNotes}
+                  />
+                  <TouchableOpacity style={styles.saveButton} onPress={handleAddRecord} disabled={saving}>
+                    <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Record'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setRecordModalVisible(false)}>
+                    <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-            </TouchableWithoutFeedback>
-
-          </View>
           </TouchableWithoutFeedback>
-
         </Modal>
 
         {/* Add Feed Log modal */}
         <Modal visible={feedModalVisible} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-              <Text style={[styles.modalTitle, { color: theme.text }]}>Add Feed</Text>
-              <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                  <Text style={[styles.modalTitle, { color: theme.text }]}>Add Feed</Text>
+                  <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
 
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Feed type (e.g. Starter, Grower, Finisher)"
-                placeholderTextColor={theme.textFaint}
-                value={feedType}
-                onChangeText={setFeedType}
-              />
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Brand (optional, e.g. Ultima Plus)"
-                placeholderTextColor={theme.textFaint}
-                value={feedBrand}
-                onChangeText={setFeedBrand}
-              />
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Feed type (e.g. Starter, Grower, Finisher)"
+                    placeholderTextColor={theme.textFaint}
+                    value={feedType}
+                    onChangeText={setFeedType}
+                  />
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Brand (optional, e.g. Ultima Plus)"
+                    placeholderTextColor={theme.textFaint}
+                    value={feedBrand}
+                    onChangeText={setFeedBrand}
+                  />
 
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <TextInput
-                  style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                  placeholder="Number of bags"
-                  placeholderTextColor={theme.textFaint}
-                  keyboardType="numeric"
-                  value={feedBagCount}
-                  onChangeText={setFeedBagCount}
-                />
-                <TextInput
-                  style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                  placeholder="Bag size (kg)"
-                  placeholderTextColor={theme.textFaint}
-                  keyboardType="numeric"
-                  value={feedBagSize}
-                  onChangeText={setFeedBagSize}
-                />
-              </View>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Number of bags"
+                      placeholderTextColor={theme.textFaint}
+                      keyboardType="numeric"
+                      value={feedBagCount}
+                      onChangeText={setFeedBagCount}
+                    />
+                    <TextInput
+                      style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                      placeholder="Bag size (kg)"
+                      placeholderTextColor={theme.textFaint}
+                      keyboardType="numeric"
+                      value={feedBagSize}
+                      onChangeText={setFeedBagSize}
+                    />
+                  </View>
 
-              {feedBagCount && feedBagSize ? (
-                <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: -4 }]}>
-                  = {(parseFloat(feedBagCount) * parseFloat(feedBagSize) || 0)}kg total
-                </Text>
-              ) : null}
+                  {feedBagCount && feedBagSize ? (
+                    <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: -4 }]}>
+                      = {(parseFloat(feedBagCount) * parseFloat(feedBagSize) || 0)}kg total
+                    </Text>
+                  ) : null}
 
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Cost (₦, optional — also logs to Expenses)"
-                placeholderTextColor={theme.textFaint}
-                keyboardType="numeric"
-                value={feedCost}
-                onChangeText={setFeedCost}
-              />
-              <TextInput
-                style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                placeholder="Notes (optional)"
-                placeholderTextColor={theme.textFaint}
-                value={feedNotes}
-                onChangeText={setFeedNotes}
-              />
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Cost (₦, optional — also logs to Expenses)"
+                    placeholderTextColor={theme.textFaint}
+                    keyboardType="numeric"
+                    value={feedCost}
+                    onChangeText={setFeedCost}
+                  />
+                  <TextInput
+                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                    placeholder="Notes (optional)"
+                    placeholderTextColor={theme.textFaint}
+                    value={feedNotes}
+                    onChangeText={setFeedNotes}
+                  />
 
-              <TouchableOpacity style={styles.saveButton} onPress={handleAddFeedLog} disabled={savingFeed}>
-                <Text style={styles.saveButtonText}>{savingFeed ? 'Saving...' : 'Save Feed Entry'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setFeedModalVisible(false)}>
-                <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity style={styles.saveButton} onPress={handleAddFeedLog} disabled={savingFeed}>
+                    <Text style={styles.saveButtonText}>{savingFeed ? 'Saving...' : 'Save Feed Entry'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setFeedModalVisible(false)}>
+                    <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-          </View>
+          </TouchableWithoutFeedback>
         </Modal>
 
         {/* Add Egg Log modal */}
         <Modal visible={eggModalVisible} animationType="slide" transparent>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-              <ScrollView>
-                <Text style={[styles.modalTitle, { color: theme.text }]}>Add Eggs</Text>
-                <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                  <ScrollView keyboardShouldPersistTaps="handled">
+                    <Text style={[styles.modalTitle, { color: theme.text }]}>Add Eggs</Text>
+                    <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
 
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Crates"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggCrates}
-                    onChangeText={setEggCrates}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Eggs/crate"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggCrateSize}
-                    onChangeText={setEggCrateSize}
-                  />
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Crates"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggCrates}
+                        onChangeText={setEggCrates}
+                      />
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Eggs/crate"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggCrateSize}
+                        onChangeText={setEggCrateSize}
+                      />
+                    </View>
+
+                    <TextInput
+                      style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                      placeholder="Loose eggs (not a full crate)"
+                      placeholderTextColor={theme.textFaint}
+                      keyboardType="numeric"
+                      value={eggLoose}
+                      onChangeText={setEggLoose}
+                    />
+
+                    {(eggCrates || eggLoose) ? (
+                      <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: -4 }]}>
+                        = {((parseFloat(eggCrates || '0') * parseFloat(eggCrateSize || String(DEFAULT_CRATE_SIZE))) + parseFloat(eggLoose || '0'))} eggs total
+                      </Text>
+                    ) : null}
+
+                    <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: 8 }]}>Grading (optional)</Text>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Small"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggSmall}
+                        onChangeText={setEggSmall}
+                      />
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Medium"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggMedium}
+                        onChangeText={setEggMedium}
+                      />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Large"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggLarge}
+                        onChangeText={setEggLarge}
+                      />
+                      <TextInput
+                        style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
+                        placeholder="Cracked"
+                        placeholderTextColor={theme.textFaint}
+                        keyboardType="numeric"
+                        value={eggCracked}
+                        onChangeText={setEggCracked}
+                      />
+                    </View>
+
+                    <TextInput
+                      style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                      placeholder="Notes (optional)"
+                      placeholderTextColor={theme.textFaint}
+                      value={eggNotes}
+                      onChangeText={setEggNotes}
+                    />
+
+                    <TouchableOpacity style={styles.saveButton} onPress={handleAddEggLog} disabled={savingEgg}>
+                      <Text style={styles.saveButtonText}>{savingEgg ? 'Saving...' : 'Save Egg Entry'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setEggModalVisible(false)}>
+                      <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                    </TouchableOpacity>
+                  </ScrollView>
                 </View>
-
-                <TextInput
-                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                  placeholder="Loose eggs (not a full crate)"
-                  placeholderTextColor={theme.textFaint}
-                  keyboardType="numeric"
-                  value={eggLoose}
-                  onChangeText={setEggLoose}
-                />
-
-                {(eggCrates || eggLoose) ? (
-                  <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: -4 }]}>
-                    = {((parseFloat(eggCrates || '0') * parseFloat(eggCrateSize || String(DEFAULT_CRATE_SIZE))) + parseFloat(eggLoose || '0'))} eggs total
-                  </Text>
-                ) : null}
-
-                <Text style={[styles.modalSubtitle, { color: theme.textMuted, marginTop: 8 }]}>Grading (optional)</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Small"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggSmall}
-                    onChangeText={setEggSmall}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Medium"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggMedium}
-                    onChangeText={setEggMedium}
-                  />
-                </View>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Large"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggLarge}
-                    onChangeText={setEggLarge}
-                  />
-                  <TextInput
-                    style={[styles.input, { flex: 1, borderColor: theme.border, color: theme.text }]}
-                    placeholder="Cracked"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={eggCracked}
-                    onChangeText={setEggCracked}
-                  />
-                </View>
-
-                <TextInput
-                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                  placeholder="Notes (optional)"
-                  placeholderTextColor={theme.textFaint}
-                  value={eggNotes}
-                  onChangeText={setEggNotes}
-                />
-
-                <TouchableOpacity style={styles.saveButton} onPress={handleAddEggLog} disabled={savingEgg}>
-                  <Text style={styles.saveButtonText}>{savingEgg ? 'Saving...' : 'Save Egg Entry'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setEggModalVisible(false)}>
-                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-                </TouchableOpacity>
-              </ScrollView>
+              </TouchableWithoutFeedback>
             </View>
-          </View>
+          </TouchableWithoutFeedback>
         </Modal>
 
         {datePickerVisible && (
@@ -851,7 +781,7 @@ export default function BatchDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16 },
+  scrollContent: { padding: 16, paddingBottom: 40 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   headerTitle: { fontSize: 22, fontWeight: '700' },
   infoCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
@@ -864,7 +794,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 13, marginBottom: 4 },
   statValue: { fontSize: 16, fontWeight: '700' },
   profitCard: { borderRadius: 16, padding: 16, marginBottom: 24 },
-  feedSummaryCard: { flexDirection: 'row', justifyContent: 'space-between', borderRadius: 16, padding: 16, marginBottom: 12 },
   financeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   financeItem: { flex: 1 },
   financeValue: { fontSize: 16, fontWeight: '700', marginTop: 4 },
@@ -872,10 +801,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: '700' },
   addRecordButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#B9E37D', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   addRecordText: { fontWeight: '600', fontSize: 13 },
-  recordRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderRadius: 12, padding: 14, marginBottom: 10 },
-  recordDate: { fontWeight: '600' },
-  recordMortality: { marginTop: 2 },
-  recordNotes: { marginTop: 2, fontSize: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '85%' },
   modalTitle: { fontSize: 18, fontWeight: 'bold' },
