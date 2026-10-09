@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["MultiShareModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.multishare.MultiShareModule"]
+  }
+}

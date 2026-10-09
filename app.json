@@ -4,14 +4,13 @@
     "slug": "poultriz",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.jpg",
+    "icon": "./assets/images/icon.png",
     "scheme": "poultriz",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.poultriz",
-      "icon": "./assets/images/icon.jpg",
+      "icon": "./assets/images/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -19,9 +18,8 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F4F5F7",
-        "foregroundImage": "./assets/images/icon.jpg"
+        "foregroundImage": "./assets/images/icon.png"
       },
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.poultriz"
     },

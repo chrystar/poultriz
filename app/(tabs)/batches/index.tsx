@@ -260,6 +260,12 @@ export default function BatchesScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.screenBackground }]} edges={['top']}>
       <Text style={[styles.headerTitle, { color: theme.text }]}>Batches</Text>
+      <View style={[styles.gestureHint, { backgroundColor: theme.cardBackground, borderColor: theme.border }]}>
+        <Ionicons name="hand-left-outline" size={16} color={theme.accentDark} />
+        <Text style={[styles.gestureHintText, { color: theme.textMuted }]}>
+          Tap a batch to view it · Press and hold for edit tools
+        </Text>
+      </View>
 
       <View style={styles.tabRow}>
         {(['active', 'planned', 'completed'] as TabKey[]).map((tab) => (
@@ -328,6 +334,10 @@ export default function BatchesScreen() {
                 </View>
                 <Text style={[styles.statValue, { color: theme.text }]}>₦{item.cost?.toLocaleString()}</Text>
               </View>
+            </View>
+            <View style={[styles.cardActionHint, { borderTopColor: theme.border }]}>
+              <Ionicons name="ellipsis-horizontal-circle-outline" size={14} color={theme.textFaint} />
+              <Text style={[styles.cardActionHintText, { color: theme.textFaint }]}>Press and hold for tools</Text>
             </View>
           </TouchableOpacity>
         )}
@@ -488,7 +498,9 @@ export default function BatchesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
+  gestureHint: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderWidth: 1, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 12, marginBottom: 14 },
+  gestureHintText: { fontSize: 12, fontWeight: '600' },
   tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tabButton: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   tabText: { fontWeight: '600', fontSize: 12 },
@@ -504,6 +516,8 @@ const styles = StyleSheet.create({
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   statLabel: { color: '#666', fontSize: 13 },
   statValue: { fontSize: 16, fontWeight: '700' },
+  cardActionHint: { flexDirection: 'row', alignItems: 'center', gap: 5, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
+  cardActionHintText: { fontSize: 11, fontWeight: '600' },
   newBatchButton: {
     flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: 6,
     backgroundColor: '#B9E37D', borderRadius: 24, paddingHorizontal: 18, paddingVertical: 12,

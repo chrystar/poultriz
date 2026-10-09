@@ -199,6 +199,9 @@ export default function HomeScreen() {
       <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Poultriz</Text>
           <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => router.push('../farm-wrapped')}>
+              <Ionicons name="sparkles-outline" size={24} color={theme.text} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/batch-profit')}>
               <Ionicons name="stats-chart-outline" size={24} color={theme.text} />
             </TouchableOpacity>
