@@ -70,6 +70,20 @@ export default function PaywallScreen() {
       await WebBrowser.openBrowserAsync(data.authorization_url);
 
       setLoadingPlan(null);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1000 : 2000));
+        await loadUserLimits();
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: latestLimits } = await supabase
+          .from('user_limits')
+          .select('plan, access_until')
+          .eq('user_id', user?.id)
+          .single();
+        if (latestLimits?.plan && new Date(latestLimits.access_until) > new Date()) {
+          return;
+        }
+      }
+
       Alert.alert(
         'Payment window closed',
         "If your payment went through, you're all set. If not, you can try again.",

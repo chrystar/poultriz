@@ -84,23 +84,20 @@ export default function BatchesScreen() {
     }
 
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error } = await supabase.from('batches').insert({
-      user_id: user?.id,
-      name,
-      breed,
-      source,
-      start_date: new Date().toISOString().split('T')[0],
-      bird_count: parseInt(birdCount, 10),
-      cost: cost ? parseFloat(cost) : 0,
-      status: status,
-      bird_type: birdType,
+    const { error } = await supabase.rpc('create_batch', {
+      p_name: name,
+      p_breed: breed,
+      p_source: source,
+      p_start_date: new Date().toISOString().split('T')[0],
+      p_bird_count: parseInt(birdCount, 10),
+      p_cost: cost ? parseFloat(cost) : 0,
+      p_status: status,
+      p_bird_type: birdType,
     });
 
     if (error) {
       setSaving(false);
-      if (error.message.includes('row-level security') || error.message.includes('policy')) {
+      if (error.code === 'P0001' || error.message.includes('Batch quota exceeded')) {
         setModalVisible(false);
         router.push('/paywall');
         return;
