@@ -71,10 +71,12 @@ export default function BatchesScreen() {
     return withinQuota && withinWindow;
   }
 
-  function daysSince(startDate: string) {
-    const start = new Date(startDate);
-    const today = new Date();
-    return Math.floor((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  function batchDays(item: any) {
+    const start = new Date(item.start_date);
+    const end = item.status === 'completed' && item.completed_at
+      ? new Date(item.completed_at)
+      : new Date();
+    return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
   }
 
   async function handleAddBatch() {
@@ -240,7 +242,13 @@ export default function BatchesScreen() {
   }
 
   async function updateStatus(batchId: string, newStatus: string) {
-    await supabase.from('batches').update({ status: newStatus }).eq('id', batchId);
+    await supabase
+      .from('batches')
+      .update({
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+      })
+      .eq('id', batchId);
     loadBatches();
   }
 
@@ -300,7 +308,11 @@ export default function BatchesScreen() {
         }
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[styles.batchCard, { backgroundColor: theme.cardBackgroundAlt }]}
+            style={[
+              styles.batchCard,
+              { backgroundColor: theme.cardBackgroundAlt },
+              item.status === 'completed' && styles.completedBatchCard,
+            ]}
             onPress={() => router.push(`/(tabs)/batches/${item.id}`)}
             onLongPress={() => handleLongPress(item)}
           >
@@ -325,7 +337,7 @@ export default function BatchesScreen() {
                   <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
                   <Text style={[styles.statLabel, { color: theme.textMuted }]}>Days</Text>
                 </View>
-                <Text style={[styles.statValue, { color: theme.text }]}>{daysSince(item.start_date)}</Text>
+                <Text style={[styles.statValue, { color: theme.text }]}>{batchDays(item)}</Text>
               </View>
               <View>
                 <View style={styles.statLabelRow}>
@@ -506,6 +518,7 @@ const styles = StyleSheet.create({
   tabText: { fontWeight: '600', fontSize: 12 },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 40 },
   batchCard: { backgroundColor: '#E8E8E8', borderRadius: 16, padding: 16, marginBottom: 12 },
+  completedBatchCard: { backgroundColor: '#EEF4EF', borderWidth: 1, borderColor: '#C6D8C9' },
   batchTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   batchName: { fontSize: 18, fontWeight: '700' },
   breedTag: { backgroundColor: '#FFE0B2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },

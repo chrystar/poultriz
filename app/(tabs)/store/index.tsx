@@ -63,7 +63,13 @@ export default function StoreHomeScreen() {
   }
 
   async function updateStatus(batchId: string, newStatus: string) {
-    await supabase.from('batches').update({ status: newStatus }).eq('id', batchId);
+    await supabase
+      .from('batches')
+      .update({
+        status: newStatus,
+        completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
+      })
+      .eq('id', batchId);
     loadData();
   }
 
@@ -139,7 +145,11 @@ export default function StoreHomeScreen() {
         }
         renderItem={({ item }) => (
           <TouchableOpacity
-            style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}
+            style={[
+              styles.card,
+              { backgroundColor: theme.cardBackgroundAlt },
+              item.status === 'completed' && styles.completedCard,
+            ]}
             onPress={() => router.push(`/(tabs)/store/${item.id}`)}
             onLongPress={() => handleLongPress(item)}
           >
@@ -148,12 +158,12 @@ export default function StoreHomeScreen() {
               <View style={[
                 styles.tag,
                 item.status === 'planned' && { backgroundColor: '#FFE0B2' },
-                item.status === 'completed' && { backgroundColor: '#E0E0E0' },
+                item.status === 'completed' && styles.completedTag,
               ]}>
                 <Text style={[
                   styles.tagText,
                   item.status === 'planned' && { color: '#E65100' },
-                  item.status === 'completed' && { color: '#616161' },
+                  item.status === 'completed' && styles.completedTagText,
                 ]}>
                   {item.status === 'active' ? 'Active' : item.status === 'planned' ? 'Planned' : 'Completed'}
                 </Text>
@@ -192,10 +202,13 @@ const styles = StyleSheet.create({
   tabButton: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },
   tabText: { fontWeight: '600', fontSize: 12 },
   card: { borderRadius: 16, padding: 16, marginBottom: 12 },
+  completedCard: { backgroundColor: '#EEF4EF', borderWidth: 1, borderColor: '#C6D8C9' },
   topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   cardName: { fontSize: 18, fontWeight: '700' },
   tag: { backgroundColor: '#E0F2D9', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
+  completedTag: { backgroundColor: '#D7E8DB' },
   tagText: { color: '#4CAF50', fontWeight: '600', fontSize: 12 },
+  completedTagText: { color: '#356B43' },
   cardSub: { marginTop: 4 },
   divider: { height: 1, marginVertical: 12 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

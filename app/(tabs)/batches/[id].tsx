@@ -8,6 +8,7 @@ import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, Toucha
 import { SafeAreaView } from 'react-native-safe-area-context';
 import LoadingState from '../../../components/LoadingState';
 import LogSummaryCard from '../../../components/LogSummaryCard';
+import { normalizeSaleType } from '../../../constants/saleTypes';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 
@@ -76,7 +77,7 @@ export default function BatchDetailScreen() {
     const { data: expenseData } = await supabase.from('expenses').select('amount').eq('batch_id', id);
     setExpenses(expenseData ?? []);
 
-    const { data: salesData } = await supabase.from('sales').select('quantity, unit_price').eq('batch_id', id);
+    const { data: salesData } = await supabase.from('sales').select('quantity, unit_price, item').eq('batch_id', id);
     setSales(salesData ?? []);
 
     const { data: feedData } = await supabase
@@ -110,6 +111,12 @@ export default function BatchDetailScreen() {
   const totalEggCrates = useMemo(() => totalEggs / DEFAULT_CRATE_SIZE, [totalEggs]);
   const totalCracked = useMemo(() => eggLogs.reduce((sum, e) => sum + Number(e.cracked_count ?? 0), 0), [eggLogs]);
   const totalDeaths = useMemo(() => records.reduce((sum, r) => sum + Number(r.mortality_count ?? 0), 0), [records]);
+  const totalSoldBirds = useMemo(
+    () => sales
+      .filter((sale) => normalizeSaleType(sale.item) === 'Live birds')
+      .reduce((sum, sale) => sum + Number(sale.quantity ?? 0), 0),
+    [sales]
+  );
 
   async function handleAddRecord() {
     const today = new Date().toISOString().split('T')[0];
@@ -410,10 +417,18 @@ export default function BatchDetailScreen() {
     return <LoadingState label="Loading batch..." />;
   }
 
-  const daysSince = Math.floor((new Date().getTime() - new Date(batch.start_date).getTime()) / (1000 * 60 * 60 * 24));
+  const daysSince = Math.max(
+    0,
+    Math.floor(
+      ((batch.status === 'completed' && batch.completed_at ? new Date(batch.completed_at) : new Date()).getTime()
+        - new Date(batch.start_date).getTime()) /
+        (1000 * 60 * 60 * 24)
+    )
+  );
   const profit = totalRevenue - totalExpenses - (batch.cost ?? 0);
   const isLayer = batch.bird_type === 'layer';
   const mortalityRate = batch.bird_count > 0 ? (totalDeaths / batch.bird_count) * 100 : 0;
+  const currentBirds = Math.max(0, Number(batch.bird_count ?? 0) - totalDeaths - totalSoldBirds);
 
   const lastFeed = feedLogs[0];
   const lastEgg = eggLogs[0];
@@ -462,6 +477,38 @@ export default function BatchDetailScreen() {
             <View>
               <Text style={[styles.statLabel, { color: theme.textMuted }]}>Cost</Text>
               <Text style={[styles.statValue, { color: theme.text }]}>₦{batch.cost?.toLocaleString()}</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.birdFlowCard, { backgroundColor: theme.cardBackgroundAlt }]}>
+          <View style={styles.birdFlowHeader}>
+            <View>
+              <Text style={[styles.sectionTitle, { color: theme.text }]}>Bird movement</Text>
+              <Text style={[styles.cardHint, { color: theme.textMuted }]}>Current batch inventory</Text>
+            </View>
+            <Ionicons name="paw-outline" size={22} color={theme.accentDark} />
+          </View>
+          <View style={[styles.birdFlowDivider, { backgroundColor: theme.border }]} />
+          <View style={styles.birdFlowRow}>
+            <View style={styles.birdFlowItem}>
+              <Text style={[styles.birdFlowLabel, { color: theme.textMuted }]}>Starting</Text>
+              <Text style={[styles.birdFlowValue, { color: theme.text }]}>{batch.bird_count}</Text>
+            </View>
+            <Text style={[styles.birdFlowMinus, { color: theme.textFaint }]}>−</Text>
+            <View style={styles.birdFlowItem}>
+              <Text style={[styles.birdFlowLabel, { color: theme.textMuted }]}>Deaths</Text>
+              <Text style={[styles.birdFlowValue, { color: theme.danger }]}>{totalDeaths}</Text>
+            </View>
+            <Text style={[styles.birdFlowMinus, { color: theme.textFaint }]}>−</Text>
+            <View style={styles.birdFlowItem}>
+              <Text style={[styles.birdFlowLabel, { color: theme.textMuted }]}>Sold</Text>
+              <Text style={[styles.birdFlowValue, { color: '#F2A93B' }]}>{totalSoldBirds}</Text>
+            </View>
+            <Text style={[styles.birdFlowEquals, { color: theme.textFaint }]}>=</Text>
+            <View style={[styles.currentBirdsPill, { backgroundColor: theme.accent }]}>
+              <Text style={[styles.birdFlowLabel, { color: '#35551F' }]}>Current</Text>
+              <Text style={[styles.currentBirdsValue, { color: '#222' }]}>{currentBirds}</Text>
             </View>
           </View>
         </View>
@@ -793,6 +840,18 @@ const styles = StyleSheet.create({
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statLabel: { fontSize: 13, marginBottom: 4 },
   statValue: { fontSize: 16, fontWeight: '700' },
+  birdFlowCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
+  birdFlowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  cardHint: { fontSize: 12, marginTop: 3 },
+  birdFlowDivider: { height: 1, marginVertical: 14 },
+  birdFlowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  birdFlowItem: { alignItems: 'center', minWidth: 42 },
+  birdFlowLabel: { fontSize: 11, marginBottom: 4 },
+  birdFlowValue: { fontSize: 19, fontWeight: '800' },
+  birdFlowMinus: { fontSize: 20, marginHorizontal: 2 },
+  birdFlowEquals: { fontSize: 18, marginHorizontal: 2 },
+  currentBirdsPill: { alignItems: 'center', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7, minWidth: 54 },
+  currentBirdsValue: { fontSize: 20, fontWeight: '800' },
   profitCard: { borderRadius: 16, padding: 16, marginBottom: 24 },
   financeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   financeItem: { flex: 1 },

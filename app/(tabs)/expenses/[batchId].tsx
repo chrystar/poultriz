@@ -5,13 +5,9 @@ import * as Sharing from 'expo-sharing';
 import { useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { CATEGORY_ICONS, EXPENSE_CATEGORIES, normalizeExpenseCategory } from '../../../constants/expenseCategories';
 import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
-
-const CATEGORY_ICONS: Record<string, string> = {
-  Feed: 'leaf',
-  'Medicine & Vaccines': 'medkit',
-};
 
 export default function BatchExpensesScreen() {
   const { batchId } = useLocalSearchParams<{ batchId: string }>();
@@ -21,6 +17,8 @@ export default function BatchExpensesScreen() {
   const [batchName, setBatchName] = useState('General');
   const [expenses, setExpenses] = useState<any[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [categoryPickerVisible, setCategoryPickerVisible] = useState(false);
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
   const [category, setCategory] = useState('');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -55,7 +53,7 @@ export default function BatchExpensesScreen() {
         (e) => `
           <tr>
             <td>${e.expense_date}</td>
-            <td>${e.category}</td>
+            <td>${normalizeExpenseCategory(e.category)}</td>
             <td>${e.description || '-'}</td>
             <td style="text-align:right">₦${Number(e.amount).toLocaleString()}</td>
           </tr>`
@@ -87,25 +85,46 @@ export default function BatchExpensesScreen() {
     }
   }
 
-  async function handleAddExpense() {
+  function resetForm() {
+    setCategory('');
+    setDescription('');
+    setAmount('');
+    setEditingExpenseId(null);
+    setCategoryPickerVisible(false);
+    setModalVisible(false);
+  }
+
+  function handleEdit(expense: any) {
+    setEditingExpenseId(expense.id);
+    setCategory(normalizeExpenseCategory(expense.category));
+    setDescription(expense.description ?? '');
+    setAmount(String(expense.amount ?? ''));
+    setCategoryPickerVisible(false);
+    setModalVisible(true);
+  }
+
+  async function handleSaveExpense() {
     if (!category || !amount) {
       Alert.alert('Error', 'Please enter category and amount');
       return;
     }
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('expenses').insert({
-      user_id: user?.id,
-      batch_id: isGeneral ? null : batchId,
-      category,
-      description,
-      amount: parseFloat(amount),
-      expense_date: new Date().toISOString().split('T')[0],
-    });
+    const payload = { category: normalizeExpenseCategory(category), description, amount: parseFloat(amount) };
+    let error;
+    if (editingExpenseId) {
+      ({ error } = await supabase.from('expenses').update(payload).eq('id', editingExpenseId));
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      ({ error } = await supabase.from('expenses').insert({
+        user_id: user?.id,
+        batch_id: isGeneral ? null : batchId,
+        ...payload,
+        expense_date: new Date().toISOString().split('T')[0],
+      }));
+    }
     setSaving(false);
     if (error) { Alert.alert('Error', error.message); return; }
-    setCategory(''); setDescription(''); setAmount('');
-    setModalVisible(false);
+    resetForm();
     loadData();
   }
 
@@ -115,9 +134,9 @@ export default function BatchExpensesScreen() {
   }
 
   const total = useMemo(() => expenses.reduce((sum, e) => sum + Number(e.amount), 0), [expenses]);
-
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>            <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+      <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
@@ -142,19 +161,24 @@ export default function BatchExpensesScreen() {
               <Ionicons name={(CATEGORY_ICONS[item.category] as any) || 'pricetag'} size={18} color="#4CAF50" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>{item.category}</Text>
+              <Text style={[styles.rowTitle, { color: theme.text }]}>{normalizeExpenseCategory(item.category)}</Text>
               {item.description ? <Text style={[styles.rowSub, { color: theme.textFaint }]}>{item.description}</Text> : null}
               <Text style={[styles.rowDate, { color: theme.textFaint }]}>{item.expense_date}</Text>
             </View>
             <Text style={[styles.rowAmount, { color: theme.text }]}>NGN {Number(item.amount).toLocaleString()}</Text>
-            <TouchableOpacity onPress={() => handleDelete(item.id)} style={{ marginLeft: 10 }}>
-              <Ionicons name="trash-outline" size={18} color={theme.danger} />
-            </TouchableOpacity>
+            <View style={styles.rowActions}>
+              <TouchableOpacity onPress={() => handleEdit(item)} hitSlop={8}>
+                <Ionicons name="create-outline" size={19} color={theme.accentDark} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => handleDelete(item.id)} hitSlop={8}>
+                <Ionicons name="trash-outline" size={18} color={theme.danger} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       />
 
-      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
+      <TouchableOpacity style={styles.fab} onPress={() => { resetForm(); setModalVisible(true); }}>
         <Ionicons name="add" size={28} color="#222" />
       </TouchableOpacity>
 
@@ -164,16 +188,46 @@ export default function BatchExpensesScreen() {
         <View style={styles.modalOverlay}>
         <TouchableWithoutFeedback>
         <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Add Expense</Text>
-            <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Category (e.g. Feed)" placeholderTextColor={theme.textFaint} value={category} onChangeText={setCategory} />
+            <Text style={[styles.modalTitle, { color: theme.text }]}>
+              {editingExpenseId ? 'Edit Expense' : 'Add Expense'}
+            </Text>
+            <TouchableOpacity
+              style={[styles.input, styles.categoryInput, { borderColor: theme.border }]}
+              onPress={() => setCategoryPickerVisible(true)}
+            >
+              <Text style={{ color: category ? theme.text : theme.textFaint }}>
+                {category || 'Select category'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color={theme.textMuted} />
+            </TouchableOpacity>
             <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Description (optional)" placeholderTextColor={theme.textFaint} value={description} onChangeText={setDescription} />
             <TextInput style={[styles.input, { borderColor: theme.border, color: theme.text }]} placeholder="Amount (NGN)" placeholderTextColor={theme.textFaint} keyboardType="numeric" value={amount} onChangeText={setAmount} />
-            <TouchableOpacity style={styles.saveButton} onPress={handleAddExpense} disabled={saving}>
-              <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Expense'}</Text>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveExpense} disabled={saving}>
+              <Text style={styles.saveButtonText}>
+                {saving ? 'Saving...' : editingExpenseId ? 'Update Expense' : 'Save Expense'}
+              </Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
+            <TouchableOpacity onPress={resetForm}>
               <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
             </TouchableOpacity>
+            {categoryPickerVisible ? (
+              <View style={[styles.inlinePicker, { backgroundColor: theme.cardBackground }]}>
+                <Text style={[styles.pickerTitle, { color: theme.text }]}>Select category</Text>
+                {EXPENSE_CATEGORIES.map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[styles.categoryOption, { borderBottomColor: theme.border }]}
+                    onPress={() => {
+                      setCategory(option);
+                      setCategoryPickerVisible(false);
+                    }}
+                  >
+                    <Text style={[styles.categoryOptionText, { color: theme.text }]}>{option}</Text>
+                    {category === option ? <Ionicons name="checkmark" size={20} color={theme.accentDark} /> : null}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
           </View>
           </TouchableWithoutFeedback>
         </View>
@@ -197,12 +251,18 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 12, marginTop: 2 },
   rowDate: { fontSize: 12, marginTop: 2 },
   rowAmount: { fontWeight: '700' },
+  rowActions: { flexDirection: 'row', alignItems: 'center', gap: 14, marginLeft: 10 },
   fab: { position: 'absolute', bottom: 20, right: 16, backgroundColor: '#B9E37D', width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   input: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 },
+  categoryInput: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   saveButton: { backgroundColor: '#B9E37D', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
   saveButtonText: { fontWeight: '600' },
   cancelText: { textAlign: 'center', marginTop: 16 },
+  inlinePicker: { borderRadius: 12, padding: 14, marginTop: 4, marginBottom: 8 },
+  pickerTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  categoryOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1 },
+  categoryOptionText: { fontSize: 15 },
 });
