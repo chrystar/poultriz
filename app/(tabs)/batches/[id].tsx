@@ -481,6 +481,66 @@ export default function BatchDetailScreen() {
           </View>
         </View>
 
+        <Text style={[styles.sectionEyebrow, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity
+            style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
+            onPress={() => setFeedModalVisible(true)}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#E7F4D5' }]}>
+              <Ionicons name="nutrition-outline" size={20} color={theme.accentDark} />
+            </View>
+            <Text style={[styles.quickActionLabel, { color: theme.text }]}>Add feed</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
+            onPress={() => setRecordModalVisible(true)}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#FFF0D6' }]}>
+              <Ionicons name="clipboard-outline" size={20} color="#C47B13" />
+            </View>
+            <Text style={[styles.quickActionLabel, { color: theme.text }]}>Add record</Text>
+          </TouchableOpacity>
+          {isLayer && (
+            <TouchableOpacity
+              style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
+              onPress={() => setEggModalVisible(true)}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: '#DDEBFF' }]}>
+                <Ionicons name="ellipse-outline" size={20} color="#3C73B8" />
+              </View>
+              <Text style={[styles.quickActionLabel, { color: theme.text }]}>Add eggs</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
+            onPress={handleExportPDF}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#F0E6FF' }]}>
+              <Ionicons name="share-outline" size={20} color="#7754A8" />
+            </View>
+            <Text style={[styles.quickActionLabel, { color: theme.text }]}>Share report</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionEyebrow, { color: theme.textMuted }]}>FEED ACTIVITY</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Feed Log</Text>
+        </View>
+        <LogSummaryCard
+          stats={[
+            { label: 'Total Fed', value: `${Number(totalFeedKg.toFixed(2))}kg` },
+            { label: 'Bags', value: String(totalFeedBags) },
+            { label: 'Spent', value: `₦${totalFeedCost.toLocaleString()}` },
+          ]}
+          count={feedLogs.length}
+          latest={latestFeed}
+          emptyText="No feed logged yet. Tap 'Add Feed' when you buy or give out feed."
+          onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
+        />
+
+        <Text style={[styles.sectionEyebrow, { color: theme.textMuted, marginTop: 22 }]}>OVERVIEW</Text>
+
         <View style={[styles.birdFlowCard, { backgroundColor: theme.cardBackgroundAlt }]}>
           <View style={styles.birdFlowHeader}>
             <View>
@@ -533,35 +593,19 @@ export default function BatchDetailScreen() {
           </View>
         </View>
 
-        {/* Feed Log */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Feed Log</Text>
-          <TouchableOpacity style={styles.addRecordButton} onPress={() => setFeedModalVisible(true)}>
-            <Ionicons name="add" size={16} color="#222" />
-            <Text style={styles.addRecordText}>Add Feed</Text>
-          </TouchableOpacity>
+        <View style={styles.activityHeading}>
+          <View>
+            <Text style={[styles.sectionEyebrow, { color: theme.textMuted, marginBottom: 3 }]}>OTHER ACTIVITY</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent logs</Text>
+          </View>
+          <Text style={[styles.activityHint, { color: theme.textMuted }]}>Tap a card to view all</Text>
         </View>
-        <LogSummaryCard
-          stats={[
-            { label: 'Total Fed', value: `${Number(totalFeedKg.toFixed(2))}kg` },
-            { label: 'Bags', value: String(totalFeedBags) },
-            { label: 'Spent', value: `₦${totalFeedCost.toLocaleString()}` },
-          ]}
-          count={feedLogs.length}
-          latest={latestFeed}
-          emptyText="No feed logged yet. Tap 'Add Feed' when you buy or give out feed."
-          onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
-        />
 
         {/* Egg Log — layer batches only */}
         {isLayer && (
           <>
             <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
               <Text style={[styles.sectionTitle, { color: theme.text }]}>Egg Log</Text>
-              <TouchableOpacity style={styles.addRecordButton} onPress={() => setEggModalVisible(true)}>
-                <Ionicons name="add" size={16} color="#222" />
-                <Text style={styles.addRecordText}>Add Eggs</Text>
-              </TouchableOpacity>
             </View>
             <LogSummaryCard
               stats={[
@@ -580,10 +624,6 @@ export default function BatchDetailScreen() {
         {/* Daily Records */}
         <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Records</Text>
-          <TouchableOpacity style={styles.addRecordButton} onPress={() => setRecordModalVisible(true)}>
-            <Ionicons name="add" size={16} color="#222" />
-            <Text style={styles.addRecordText}>Add Record</Text>
-          </TouchableOpacity>
         </View>
         <LogSummaryCard
           stats={[
@@ -834,6 +874,13 @@ const styles = StyleSheet.create({
   infoCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
   infoTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   infoSource: { fontSize: 15 },
+  sectionEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+  quickActionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
+  quickAction: { width: '48%', minHeight: 70, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quickActionIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  quickActionLabel: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
+  activityHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4, marginBottom: 14 },
+  activityHint: { fontSize: 11, marginBottom: 2 },
   breedTag: { backgroundColor: '#FFE0B2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   breedTagText: { color: '#E65100', fontWeight: '600', fontSize: 12 },
   divider: { height: 1, marginVertical: 12 },

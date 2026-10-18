@@ -22,6 +22,39 @@ In the output, you'll find options to open the app in a
 - [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
 - [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
 - [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+- web browser with `w`
+
+## Run as a web app
+
+Start the web version locally:
+
+```bash
+npm run web
+```
+
+Create a production-ready static web build:
+
+```bash
+npx expo export --platform web
+```
+
+The generated site is written to the `dist` folder. This project includes [vercel.json](./vercel.json), so Vercel can build and deploy it automatically.
+
+### Deploy with Vercel
+
+1. Push the repository to GitHub and import it into [Vercel](https://vercel.com/new).
+2. Keep the detected project settings. Vercel will use `vercel.json` to run the Expo web export and serve `dist`.
+3. Add these environment variables in **Project Settings → Environment Variables**:
+   - `EXPO_PUBLIC_SUPABASE_URL`
+   - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+4. Redeploy after saving the variables.
+
+For local Vercel CLI deployments:
+
+```bash
+npx vercel
+npx vercel --prod
+```
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 

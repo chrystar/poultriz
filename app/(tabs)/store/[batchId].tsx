@@ -225,6 +225,19 @@ export default function BatchSalesScreen() {
     return `₦${Math.round(value).toLocaleString()}`;
   }
 
+  function getSaleVisual(item: unknown) {
+    switch (normalizeSaleType(item)) {
+      case 'Live birds':
+        return { icon: 'paw-outline' as const, color: '#D06AA5', backgroundColor: '#FBEAF3' };
+      case 'Eggs':
+        return { icon: 'ellipse-outline' as const, color: '#C2774A', backgroundColor: '#FCEFE7' };
+      case 'Manure':
+        return { icon: 'leaf-outline' as const, color: '#5D8A64', backgroundColor: '#EAF4EB' };
+      default:
+        return { icon: 'cash-outline' as const, color: '#5576B8', backgroundColor: '#EAF0FC' };
+    }
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
@@ -289,23 +302,38 @@ export default function BatchSalesScreen() {
           {sales.length === 0 ? (
             <Text style={[styles.emptyText, { color: theme.textFaint }]}>No sales recorded yet.</Text>
           ) : (
-            sales.map((sale) => (
-              <View key={sale.id} style={[styles.row, { backgroundColor: theme.cardBackground }]}>
-                <View style={styles.iconCircle}><Ionicons name="cash" size={18} color={theme.accentDark} /></View>
-                <View style={styles.saleDetails}>
-                  <Text style={[styles.rowTitle, { color: theme.text }]}>{sale.item}</Text>
-                  <Text style={[styles.rowSub, { color: theme.textMuted }]}>{sale.quantity} × NGN {Number(sale.unit_price).toLocaleString()}{sale.buyer ? ` • ${sale.buyer}` : ''}</Text>
-                  <Text style={[styles.rowDate, { color: theme.textFaint }]}>{sale.sale_date}</Text>
-                </View>
-                <View style={styles.saleAmount}>
-                  <Text style={[styles.rowAmount, { color: theme.text }]}>{formatCurrency(sale.quantity * Number(sale.unit_price))}</Text>
-                  <View style={styles.saleActions}>
-                    <TouchableOpacity onPress={() => handleEditSale(sale)} hitSlop={10}><Ionicons name="create-outline" size={17} color={theme.accentDark} /></TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(sale.id)} hitSlop={10}><Ionicons name="trash-outline" size={17} color={theme.danger} /></TouchableOpacity>
+            sales.map((sale) => {
+              const visual = getSaleVisual(sale.item);
+              return (
+                <View key={sale.id} style={[styles.row, { backgroundColor: theme.cardBackground }]}>
+                  <View style={[styles.iconCircle, { backgroundColor: visual.backgroundColor }]}>
+                    <Ionicons name={visual.icon} size={19} color={visual.color} />
+                  </View>
+                  <View style={styles.saleDetails}>
+                    <View style={styles.saleTitleRow}>
+                      <Text style={[styles.rowTitle, { color: theme.text }]}>{normalizeSaleType(sale.item)}</Text>
+                      <Text style={[styles.rowDate, { color: theme.textFaint }]}>{sale.sale_date}</Text>
+                    </View>
+                    <Text style={[styles.rowSub, { color: theme.textMuted }]}>
+                      {sale.quantity} × {formatCurrency(Number(sale.unit_price))}
+                    </Text>
+                    {sale.buyer ? (
+                      <View style={styles.buyerRow}>
+                        <Ionicons name="person-outline" size={13} color={theme.textFaint} />
+                        <Text style={[styles.buyerText, { color: theme.textFaint }]}>{sale.buyer}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <View style={styles.saleAmount}>
+                    <Text style={[styles.rowAmount, { color: theme.text }]}>{formatCurrency(sale.quantity * Number(sale.unit_price))}</Text>
+                    <View style={styles.saleActions}>
+                      <TouchableOpacity onPress={() => handleEditSale(sale)} hitSlop={10}><Ionicons name="create-outline" size={17} color={theme.accentDark} /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDelete(sale.id)} hitSlop={10}><Ionicons name="trash-outline" size={17} color={theme.danger} /></TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       )}
@@ -563,14 +591,17 @@ const styles = StyleSheet.create({
   salesHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, marginBottom: 10 },
   sectionTitle: { fontSize: 17, fontWeight: '800' },
   emptyText: { textAlign: 'center', marginTop: 28, marginBottom: 20 },
-  row: { flexDirection: 'row', alignItems: 'center', borderRadius: 14, padding: 13, marginBottom: 9 },
-  iconCircle: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F5E9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  row: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, paddingVertical: 18, paddingHorizontal: 14, marginBottom: 10 },
+  iconCircle: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   rowTitle: { fontWeight: '700' },
   rowSub: { fontSize: 13, marginTop: 2 },
   rowDate: { fontSize: 12, marginTop: 2 },
   rowAmount: { fontWeight: '700' },
   saleDetails: { flex: 1 },
-  saleAmount: { alignItems: 'flex-end', gap: 8 },
+  saleTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  buyerRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  buyerText: { fontSize: 12 },
+  saleAmount: { alignItems: 'flex-end', gap: 9, marginLeft: 8 },
   saleActions: { flexDirection: 'row', gap: 14 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
