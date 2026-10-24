@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EmptyState from '../../../components/EmptyState';
 import { useTheme } from '../../../context/ThemeContext';
@@ -12,8 +12,8 @@ type TabKey = 'active' | 'planned' | 'completed';
 export default function StoreHomeScreen() {
   const { theme } = useTheme();
   const [batches, setBatches] = useState<any[]>([]);
-  const [generalTotal, setGeneralTotal] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>('active');
+  const [toolsBatch, setToolsBatch] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -33,8 +33,6 @@ export default function StoreHomeScreen() {
       count: (allSales ?? []).filter((s) => s.batch_id === b.id).length,
     }));
 
-    const generalItems = (allSales ?? []).filter((s) => !s.batch_id);
-    setGeneralTotal(generalItems.reduce((sum, s) => sum + s.quantity * Number(s.unit_price), 0));
     setBatches(batchCards);
   }
 
@@ -47,6 +45,11 @@ export default function StoreHomeScreen() {
       options.push({ label: 'Mark as Completed', nextStatus: 'completed' });
     } else if (item.status === 'completed') {
       options.push({ label: 'Reopen as Active', nextStatus: 'active' });
+    }
+
+    if (Platform.OS === 'web') {
+      setToolsBatch(item);
+      return;
     }
 
     Alert.alert(
@@ -191,12 +194,36 @@ export default function StoreHomeScreen() {
           </TouchableOpacity>
         )}
       />
+      {toolsBatch ? (
+        <Modal visible transparent animationType="fade" onRequestClose={() => setToolsBatch(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.toolsModal, { backgroundColor: theme.background }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{toolsBatch.name}</Text>
+              <Text style={[styles.toolsSubtitle, { color: theme.textMuted }]}>Batch tools</Text>
+              <TouchableOpacity style={styles.toolButton} onPress={() => { setToolsBatch(null); updateStatus(toolsBatch.id, toolsBatch.status === 'active' ? 'completed' : 'active'); }}>
+                <Text style={[styles.toolButtonText, { color: theme.text }]}>
+                  {toolsBatch.status === 'active' ? 'Mark as Completed' : toolsBatch.status === 'planned' ? 'Mark as Active' : 'Reopen as Active'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setToolsBatch(null)}>
+                <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  toolsModal: { width: '92%', maxWidth: 420, borderRadius: 20, padding: 24 },
+  toolsSubtitle: { fontSize: 13, marginBottom: 12 },
+  toolButton: { borderTopWidth: 1, borderTopColor: '#DDDDDD', paddingVertical: 14 },
+  toolButtonText: { fontSize: 15, fontWeight: '600' },
+  cancelText: { textAlign: 'center', marginTop: 16 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
   tabRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tabButton: { flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center' },

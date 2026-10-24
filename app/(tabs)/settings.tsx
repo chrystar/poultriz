@@ -3,6 +3,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
   Alert,
+  Linking,
   Modal,
   ScrollView,
   StyleSheet,
@@ -16,6 +17,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../context/ThemeContext';
 import { supabase } from '../../lib/supabase';
+
+// Replace this with the public APK download URL before publishing.
+const ANDROID_DOWNLOAD_URL = 'https://www.mediafire.com/file/5bih1gwh6a5o5po/poultriz.apk/file';
 
 export default function SettingsScreen() {
   const { theme, isDark, toggleTheme } = useTheme();
@@ -97,6 +101,15 @@ export default function SettingsScreen() {
         },
       },
     ]);
+  }
+
+  async function handleAndroidDownload() {
+    try {
+      await Linking.openURL(ANDROID_DOWNLOAD_URL);
+    } catch (error) {
+      console.warn('Could not open Android download link:', error);
+      Alert.alert('Could not open download', 'Please try again or contact support.');
+    }
   }
 
   const initials = fullName
@@ -346,6 +359,57 @@ export default function SettingsScreen() {
             />
           </View>
         </View>
+
+        {/* ANDROID DOWNLOAD */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={[
+            styles.section,
+            {
+              backgroundColor: theme.cardBackground,
+            },
+          ]}
+          onPress={handleAndroidDownload}
+        >
+          <View style={styles.settingRow}>
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name="logo-android"
+                size={21}
+                color={theme.accentDark}
+              />
+            </View>
+
+            <View style={styles.rowContent}>
+              <Text
+                style={[
+                  styles.rowTitle,
+                  {
+                    color: theme.text,
+                  },
+                ]}
+              >
+                Download Android App
+              </Text>
+              <Text
+                style={[
+                  styles.rowSubtitle,
+                  {
+                    color: theme.textMuted,
+                  },
+                ]}
+              >
+                Install Poultriz on an Android phone
+              </Text>
+            </View>
+
+            <Ionicons
+              name="download-outline"
+              size={19}
+              color={theme.textMuted}
+            />
+          </View>
+        </TouchableOpacity>
 
         {/* LOGOUT */}
         <TouchableOpacity

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EmptyState from '../../../components/EmptyState';
 import { useTheme } from '../../../context/ThemeContext';
@@ -41,6 +41,7 @@ export default function BatchesScreen() {
   const [editBirdCount, setEditBirdCount] = useState('');
   const [editCost, setEditCost] = useState('');
   const [editSaving, setEditSaving] = useState(false);
+  const [toolsBatch, setToolsBatch] = useState<any>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -127,6 +128,11 @@ export default function BatchesScreen() {
       options.push({ label: 'Mark as Completed', action: () => updateStatus(item.id, 'completed') });
     } else if (item.status === 'completed') {
       options.push({ label: 'Reopen as Active', action: () => updateStatus(item.id, 'active') });
+    }
+
+    if (Platform.OS === 'web') {
+      setToolsBatch(item);
+      return;
     }
 
     Alert.alert(
@@ -265,6 +271,36 @@ export default function BatchesScreen() {
     return '#9E9E9E';
   };
 
+  function renderCardTools(item: any) {
+    const content = (
+      <>
+        <Ionicons name="ellipsis-horizontal-circle-outline" size={14} color={theme.textFaint} />
+        <Text style={[styles.cardActionHintText, { color: theme.textFaint }]}>
+          {Platform.OS === 'web' ? 'Open batch tools' : 'Press and hold for tools'}
+        </Text>
+      </>
+    );
+
+    if (Platform.OS === 'web') {
+      return (
+        <TouchableOpacity
+          style={[styles.cardActionHint, { borderTopColor: theme.border }]}
+          onPress={() => handleLongPress(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open tools for ${item.name}`}
+        >
+          {content}
+        </TouchableOpacity>
+      );
+    }
+
+    return (
+      <View style={[styles.cardActionHint, { borderTopColor: theme.border }]}>
+        {content}
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.screenBackground }]} edges={['top']}>
       <Text style={[styles.headerTitle, { color: theme.text }]}>Batches</Text>
@@ -307,15 +343,17 @@ export default function BatchesScreen() {
           )
         }
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <View
             style={[
               styles.batchCard,
               { backgroundColor: theme.cardBackgroundAlt },
               item.status === 'completed' && styles.completedBatchCard,
             ]}
-            onPress={() => router.push(`/(tabs)/batches/${item.id}`)}
-            onLongPress={() => handleLongPress(item)}
           >
+            <TouchableOpacity
+              onPress={() => router.push(`/(tabs)/batches/${item.id}`)}
+              onLongPress={() => handleLongPress(item)}
+            >
             <View style={styles.batchTopRow}>
               <Text style={[styles.batchName, { color: theme.text }]}>{item.name}</Text>
               <View style={styles.breedTag}>
@@ -347,11 +385,9 @@ export default function BatchesScreen() {
                 <Text style={[styles.statValue, { color: theme.text }]}>₦{item.cost?.toLocaleString()}</Text>
               </View>
             </View>
-            <View style={[styles.cardActionHint, { borderTopColor: theme.border }]}>
-              <Ionicons name="ellipsis-horizontal-circle-outline" size={14} color={theme.textFaint} />
-              <Text style={[styles.cardActionHintText, { color: theme.textFaint }]}>Press and hold for tools</Text>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+            {renderCardTools(item)}
+          </View>
         )}
       />
 
@@ -368,6 +404,61 @@ export default function BatchesScreen() {
         <Ionicons name="add" size={20} color="#222" />
         <Text style={styles.newBatchText}>New Batch</Text>
       </TouchableOpacity>
+
+      {toolsBatch ? (
+        <Modal visible animationType="fade" transparent onRequestClose={() => setToolsBatch(null)}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.toolsModal, { backgroundColor: theme.background }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>{toolsBatch.name}</Text>
+              <Text style={[styles.toolsSubtitle, { color: theme.textMuted }]}>Batch tools</Text>
+              <TouchableOpacity
+                style={styles.toolButton}
+                onPress={() => {
+                  setToolsBatch(null);
+                  openEditModal(toolsBatch);
+                }}
+              >
+                <Text style={[styles.toolButtonText, { color: theme.text }]}>Edit Batch</Text>
+              </TouchableOpacity>
+              {toolsBatch.status === 'planned' ? (
+                <TouchableOpacity
+                  style={styles.toolButton}
+                  onPress={() => {
+                    setToolsBatch(null);
+                    openActivateModal(toolsBatch);
+                  }}
+                >
+                  <Text style={[styles.toolButtonText, { color: theme.text }]}>Mark as Active</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.toolButton}
+                  onPress={() => {
+                    setToolsBatch(null);
+                    updateStatus(toolsBatch.id, toolsBatch.status === 'active' ? 'completed' : 'active');
+                  }}
+                >
+                  <Text style={[styles.toolButtonText, { color: theme.text }]}>
+                    {toolsBatch.status === 'active' ? 'Mark as Completed' : 'Reopen as Active'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.toolButton}
+                onPress={() => {
+                  setToolsBatch(null);
+                  confirmDelete(toolsBatch);
+                }}
+              >
+                <Text style={[styles.toolButtonText, { color: theme.danger }]}>Delete Batch</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setToolsBatch(null)}>
+                <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
 
       {/* New Batch modal */}
       <Modal visible={modalVisible} animationType="slide" transparent>
@@ -539,6 +630,10 @@ const styles = StyleSheet.create({
   newBatchText: { fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  toolsModal: { width: '92%', maxWidth: 420, borderRadius: 20, padding: 24 },
+  toolsSubtitle: { fontSize: 13, marginBottom: 12 },
+  toolButton: { borderTopWidth: 1, borderTopColor: '#DDDDDD', paddingVertical: 14 },
+  toolButtonText: { fontSize: 15, fontWeight: '600' },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 8 },
   modalSubtitle: { fontSize: 13, marginBottom: 16 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 12, padding: 14, marginBottom: 12 },

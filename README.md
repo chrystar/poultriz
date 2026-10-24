@@ -44,10 +44,19 @@ The generated site is written to the `dist` folder. This project includes [verce
 
 1. Push the repository to GitHub and import it into [Vercel](https://vercel.com/new).
 2. Keep the detected project settings. Vercel will use `vercel.json` to run the Expo web export and serve `dist`.
-3. Add these environment variables in **Project Settings → Environment Variables**:
+3. Add these environment variables in **Project Settings → Environment Variables**. Select **Production** (and **Preview** if you want preview deployments to use Supabase):
    - `EXPO_PUBLIC_SUPABASE_URL`
    - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 4. Redeploy after saving the variables.
+
+Downloading environment variables with `vercel env pull` only creates a local `.env.local` file; it does not add variables to the Vercel Production environment. You can add them from the CLI instead:
+
+```bash
+npx vercel env add EXPO_PUBLIC_SUPABASE_URL production
+npx vercel env add EXPO_PUBLIC_SUPABASE_ANON_KEY production
+```
+
+When prompted, enter the same values used in your local `.env` file. Do not commit `.env` or `.env.local`.
 
 For local Vercel CLI deployments:
 
@@ -55,6 +64,14 @@ For local Vercel CLI deployments:
 npx vercel
 npx vercel --prod
 ```
+
+The repository includes [.vercelignore](./.vercelignore) so local dependencies, native projects, generated output, and environment files are not uploaded to Vercel. If the CLI still reports a file-count error from an old CLI version, deploy with:
+
+```bash
+npx vercel --archive=tgz
+```
+
+If Vercel still shows a Next.js detection error for an already-created project, open **Project Settings → Build and Deployment**, set **Framework Preset** to **Other**, set **Root Directory** to the repository root, and redeploy.
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 

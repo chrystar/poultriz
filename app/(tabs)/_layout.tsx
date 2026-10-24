@@ -1,5 +1,6 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 
 export default function TabLayout() {
@@ -14,7 +15,21 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.background,
           borderTopColor: theme.border,
+          ...(Platform.OS === 'web'
+            ? {
+                position: 'fixed',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                width: '100%',
+                height: 68,
+                paddingTop: 6,
+                paddingBottom: 8,
+                zIndex: 1000,
+              }
+            : {}),
         },
+        sceneStyle: Platform.OS === 'web' ? { paddingBottom: 68 } : undefined,
       }}
     >
       <Tabs.Screen

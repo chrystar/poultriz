@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -35,6 +35,7 @@ export default function PaywallScreen() {
   const [selected, setSelected] = useState<PlanKey>('yearly');
   const [userLimits, setUserLimits] = useState<any>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -56,18 +57,26 @@ export default function PaywallScreen() {
 
   async function handleSubscribe(plan: PlanKey) {
     setLoadingPlan(plan);
+    setPaymentError(null);
     try {
       const { data, error } = await supabase.functions.invoke('init-payment', {
         body: { plan },
       });
 
       if (error || !data?.authorization_url) {
-        Alert.alert('Error', error?.message ?? 'Could not start payment. Please try again.');
+        const message = error?.message ?? data?.error ?? 'Could not start payment. Please try again.';
+        setPaymentError(message);
+        Alert.alert('Payment could not start', message);
         setLoadingPlan(null);
         return;
       }
 
-      await WebBrowser.openBrowserAsync(data.authorization_url);
+      if (Platform.OS === 'web') {
+        window.location.assign(data.authorization_url);
+        return;
+      } else {
+        await WebBrowser.openBrowserAsync(data.authorization_url);
+      }
 
       setLoadingPlan(null);
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -91,7 +100,9 @@ export default function PaywallScreen() {
       );
     } catch (err: any) {
       setLoadingPlan(null);
-      Alert.alert('Error', err?.message ?? 'Something went wrong.');
+      const message = err?.message ?? 'Something went wrong.';
+      setPaymentError(message);
+      Alert.alert('Payment could not start', message);
     }
   }
 
@@ -123,6 +134,12 @@ export default function PaywallScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {paymentError ? (
+          <View style={[styles.errorCard, { backgroundColor: theme.danger + '18', borderColor: theme.danger }]}>
+            <Ionicons name="alert-circle-outline" size={20} color={theme.danger} />
+            <Text style={[styles.errorText, { color: theme.danger }]}>{paymentError}</Text>
+          </View>
+        ) : null}
         {hasActiveWindow ? (
           <>
             {/* ACTIVE SUBSCRIBER VIEW */}
@@ -295,6 +312,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   headerTitle: { fontSize: 16, fontWeight: '700' },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 24, alignItems: 'center' },
+  errorCard: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 12 },
+  errorText: { flex: 1, fontSize: 13, lineHeight: 18 },
 
   statusCard: { width: '100%', borderRadius: 20, padding: 20, marginTop: 12 },
   statusTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },

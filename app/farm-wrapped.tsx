@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import { router, useFocusEffect } from 'expo-router';
-import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Dimensions, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Dimensions, Platform, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
 import { useTheme } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
 import MultiShareModule from '../modules/multi-share/src/MultiShareModule';
@@ -180,6 +180,21 @@ function createWrappedHtml(periodLabel: string, stats: WrappedStats, includeMone
   `;
 }
 
+function printWrappedHtmlInBrowser(html: string): void {
+  const reportUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  const printWindow = window.open(reportUrl, '_blank');
+  if (!printWindow) {
+    URL.revokeObjectURL(reportUrl);
+    throw new Error('The report window could not be opened. Allow pop-ups and try again.');
+  }
+
+  printWindow.addEventListener('load', () => {
+    printWindow.focus();
+    printWindow.print();
+    URL.revokeObjectURL(reportUrl);
+  }, { once: true });
+}
+
 export default function FarmWrappedScreen() {
   const { theme } = useTheme();
   const [period, setPeriod] = useState<Period>('all');
@@ -247,6 +262,11 @@ export default function FarmWrappedScreen() {
   async function shareAllSlides() {
     setSharing(true);
     try {
+      if (Platform.OS === 'web') {
+        printWrappedHtmlInBrowser(createWrappedHtml(periodLabel, stats, includeMoney));
+        return;
+      }
+
       if (!MultiShareModule) {
         Alert.alert(
           'Development build required',
@@ -278,6 +298,11 @@ export default function FarmWrappedScreen() {
   async function shareCurrentSlide() {
     setSharing(true);
     try {
+      if (Platform.OS === 'web') {
+        printWrappedHtmlInBrowser(createWrappedHtml(periodLabel, stats, includeMoney));
+        return;
+      }
+
       const slide = slideRefs.current[activeSlide];
       if (!slide) {
         throw new Error('The selected Farm Wrapped slide is not ready to share.');
@@ -307,6 +332,11 @@ export default function FarmWrappedScreen() {
   async function shareCarouselPdf() {
     setExportingPdf(true);
     try {
+      if (Platform.OS === 'web') {
+        printWrappedHtmlInBrowser(createWrappedHtml(periodLabel, stats, includeMoney));
+        return;
+      }
+
       const { uri } = await Print.printToFileAsync({
         html: createWrappedHtml(periodLabel, stats, includeMoney),
         width: 540,

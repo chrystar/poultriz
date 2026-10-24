@@ -1,0 +1,19 @@
+# Local dependencies and generated build output
+node_modules
+dist
+.expo
+.vercel
+
+# Native projects are not needed for the web build
+ios
+android
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Repository and machine metadata
+.git
+.DS_Store
+*.log

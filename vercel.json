@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npx expo export --platform web",
+  "framework": null,
+  "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
   "rewrites": [
     {

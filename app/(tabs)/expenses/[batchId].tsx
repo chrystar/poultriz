@@ -3,7 +3,7 @@ import * as Print from 'expo-print';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Keyboard, Modal, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, FlatList, Keyboard, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CATEGORY_ICONS, EXPENSE_CATEGORIES, normalizeExpenseCategory } from '../../../constants/expenseCategories';
 import { useTheme } from '../../../context/ThemeContext';
@@ -75,6 +75,22 @@ export default function BatchExpensesScreen() {
         </body>
       </html>
     `;
+
+    if (Platform.OS === 'web') {
+      const reportUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      const printWindow = window.open(reportUrl, '_blank');
+      if (!printWindow) {
+        URL.revokeObjectURL(reportUrl);
+        Alert.alert('Unable to print', 'Please allow pop-ups for this site and try again.');
+        return;
+      }
+      printWindow.addEventListener('load', () => {
+        printWindow.focus();
+        printWindow.print();
+        URL.revokeObjectURL(reportUrl);
+      });
+      return;
+    }
 
     const { uri } = await Print.printToFileAsync({ html });
 

@@ -2,10 +2,11 @@ import { Session } from '@supabase/supabase-js';
 import * as Application from 'expo-application';
 import { Stack, router, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Alert, AppState, Linking } from 'react-native';
+import { Alert, AppState, Linking, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '../context/ThemeContext';
 import { supabase } from '../lib/supabase';
+import WebInstallPrompt from '../components/WebInstallPrompt';
 
 // Compares semver-style versions (e.g., "1.0.2" vs "2.0.0")
 function isVersionOlder(current: string, minimum: string): boolean {
@@ -30,6 +31,7 @@ export default function RootLayout() {
   // Native APK update check — runs on launch, and whenever the app returns to the foreground
   useEffect(() => {
     async function checkNativeUpdate() {
+      if (Platform.OS === 'web') return;
       if (__DEV__) return;
       if (updateAlertShown.current) return; // don't stack duplicate alerts
 
@@ -117,6 +119,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ThemeProvider>
         <Stack screenOptions={{ headerShown: false }} />
+        <WebInstallPrompt />
       </ThemeProvider>
     </SafeAreaProvider>
   );
