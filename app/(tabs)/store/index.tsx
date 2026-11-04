@@ -242,4 +242,9 @@ const styles = StyleSheet.create({
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
   statLabel: { fontSize: 13 },
   statValue: { fontSize: 16, fontWeight: '700' },
+    modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
 });

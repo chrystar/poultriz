@@ -80,6 +80,19 @@ export default function BatchesScreen() {
     return Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
   }
 
+  function formatBatchStartDate(date: string | null | undefined) {
+    if (!date) return 'Date unavailable';
+
+    const parsedDate = new Date(`${date.split('T')[0]}T12:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) return 'Date unavailable';
+
+    return parsedDate.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
   async function handleAddBatch() {
     if (!name || !birdCount) {
       Alert.alert('Error', 'Please fill in batch name and bird count');
@@ -361,6 +374,12 @@ export default function BatchesScreen() {
               </View>
             </View>
             <Text style={[styles.batchSource, { color: theme.textMuted }]}>{item.source}</Text>
+            <View style={styles.batchStartDateRow}>
+              <Ionicons name="calendar-outline" size={14} color={theme.textMuted} />
+              <Text style={[styles.batchStartDate, { color: theme.textMuted }]}>
+                Started: {formatBatchStartDate(item.start_date)}
+              </Text>
+            </View>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
             <View style={styles.statsRow}>
               <View>
@@ -615,6 +634,8 @@ const styles = StyleSheet.create({
   breedTag: { backgroundColor: '#FFE0B2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   breedTagText: { color: '#E65100', fontWeight: '600', fontSize: 12 },
   batchSource: { color: '#777', marginTop: 4 },
+  batchStartDateRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  batchStartDate: { fontSize: 12, fontWeight: '500' },
   divider: { height: 1, backgroundColor: '#D5D5D5', marginVertical: 12 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 },
