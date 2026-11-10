@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Keyboard, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import EmptyState from '../components/EmptyState';
 import LoadingState from '../components/LoadingState';
@@ -15,6 +15,10 @@ export default function DailyRecordsScreen() {
   const [birdCount, setBirdCount] = useState(0);
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [mortalityCount, setMortalityCount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,6 +42,33 @@ export default function DailyRecordsScreen() {
   }
 
   const totalDeaths = useMemo(() => records.reduce((sum, r) => sum + Number(r.mortality_count ?? 0), 0), [records]);
+
+  async function handleAddRecord() {
+    const today = new Date().toISOString().split('T')[0];
+    if (records.some((record) => record.record_date === today)) {
+      Alert.alert('Already logged', 'You already added a record for today.');
+      return;
+    }
+
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from('daily_records').insert({
+      batch_id: batchId,
+      user_id: user?.id,
+      record_date: today,
+      mortality_count: mortalityCount ? parseInt(mortalityCount, 10) : 0,
+      notes,
+    });
+    setSaving(false);
+    if (error) {
+      Alert.alert('Error', error.message);
+      return;
+    }
+    setMortalityCount('');
+    setNotes('');
+    setModalVisible(false);
+    load();
+  }
 
   function handleDelete(recordId: string) {
     Alert.alert('Delete Record', 'Delete this daily record?', [
@@ -69,7 +100,9 @@ export default function DailyRecordsScreen() {
           <Text style={[styles.headerTitle, { color: theme.text }]}>Daily Records</Text>
           {batchName ? <Text style={[styles.headerSub, { color: theme.textMuted }]}>{batchName}</Text> : null}
         </View>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={() => setModalVisible(true)} hitSlop={10}>
+          <Ionicons name="add-circle-outline" size={25} color={theme.accentDark} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -89,7 +122,7 @@ export default function DailyRecordsScreen() {
         </View>
 
         {records.length === 0 ? (
-          <EmptyState icon="clipboard-outline" title="No daily records yet" subtitle="Add a record from the batch screen." />
+          <EmptyState icon="clipboard-outline" title="No daily records yet" subtitle="Tap the add button to create your first record." />
         ) : (
           records.map((rec) => (
             <View key={rec.id} style={[styles.row, { backgroundColor: theme.cardBackground }]}>
@@ -108,6 +141,40 @@ export default function DailyRecordsScreen() {
           ))
         )}
       </ScrollView>
+
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Add Daily Record</Text>
+                <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Number of deaths today"
+                  placeholderTextColor={theme.textFaint}
+                  keyboardType="numeric"
+                  value={mortalityCount}
+                  onChangeText={setMortalityCount}
+                />
+                <TextInput
+                  style={[styles.input, { borderColor: theme.border, color: theme.text }]}
+                  placeholder="Notes (optional)"
+                  placeholderTextColor={theme.textFaint}
+                  value={notes}
+                  onChangeText={setNotes}
+                />
+                <TouchableOpacity style={styles.saveButton} onPress={handleAddRecord} disabled={saving}>
+                  <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Record'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -127,4 +194,12 @@ const styles = StyleSheet.create({
   rowTitle: { fontWeight: '600' },
   rowLine: { marginTop: 2 },
   rowNote: { marginTop: 2, fontSize: 12 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold' },
+  modalSubtitle: { marginBottom: 16, marginTop: 2 },
+  input: { borderWidth: 1, borderRadius: 12, padding: 14, marginBottom: 12 },
+  saveButton: { backgroundColor: '#B9E37D', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 8 },
+  saveButtonText: { fontWeight: '600' },
+  cancelText: { textAlign: 'center', marginTop: 16, marginBottom: 8 },
 });

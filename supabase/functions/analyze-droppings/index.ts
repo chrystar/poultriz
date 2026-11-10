@@ -1,4 +1,6 @@
 
+import { createClient } from "@supabase/supabase-js";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -29,6 +31,45 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return jsonResponse({ error: "Subscription required." }, 403);
+    }
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return jsonResponse({ error: "Your session has expired. Please sign in again." }, 401);
+    }
+
+    const { data: limits, error: limitsError } = await supabase
+      .from("user_limits")
+      .select("plan, access_until")
+      .eq("user_id", user.id)
+      .single();
+
+    if (limitsError && limitsError.code !== "PGRST116") {
+      console.error("Could not verify scan subscription:", limitsError);
+      return jsonResponse({ error: "Could not verify your subscription. Please try again." }, 503);
+    }
+
+    const hasActiveSubscription =
+      Boolean(limits?.plan) &&
+      Boolean(limits?.access_until) &&
+      new Date(limits?.access_until ?? 0).getTime() > Date.now();
+
+    if (!hasActiveSubscription) {
+      return jsonResponse({ error: "An active subscription is required to use poultry scan." }, 403);
+    }
+
     const apiKey = Deno.env.get("OPENAI_API_KEY");
 
     if (!apiKey) {

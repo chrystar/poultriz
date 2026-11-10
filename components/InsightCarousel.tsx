@@ -29,7 +29,8 @@ export default function InsightCarousel({ insights }: { insights: Insight[] }) {
 
   if (insights.length === 0) return null;
 
-  const current = insights[index];
+  const safeIndex = Math.min(index, insights.length - 1);
+  const current = insights[safeIndex];
 
   return (
     <View style={[styles.card, { backgroundColor: theme.cardBackgroundAlt }]}>
@@ -46,7 +47,7 @@ export default function InsightCarousel({ insights }: { insights: Insight[] }) {
             key={i}
             style={[
               styles.dot,
-              { backgroundColor: i === index ? theme.accentDark : theme.border },
+              { backgroundColor: i === safeIndex ? theme.accentDark : theme.border },
             ]}
           />
         ))}

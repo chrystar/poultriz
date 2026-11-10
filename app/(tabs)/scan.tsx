@@ -1,8 +1,8 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { Stack } from 'expo-router';
-import { useState } from 'react';
+import { router, Stack, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 
 import {
     ActivityIndicator,
@@ -30,6 +30,57 @@ export default function ScanScreen() {
     const [analyzing, setAnalyzing] = useState(false);
     const [analysis, setAnalysis] = useState<string | null>(null);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
+    const [subscriptionLoading, setSubscriptionLoading] = useState(true);
+    const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+
+    useFocusEffect(
+        useCallback(() => {
+            let mounted = true;
+
+            async function loadSubscription() {
+                setSubscriptionLoading(true);
+                const {
+                    data: { user },
+                } = await supabase.auth.getUser();
+
+                if (!user) {
+                    if (mounted) {
+                        setHasActiveSubscription(false);
+                        setSubscriptionLoading(false);
+                    }
+                    return;
+                }
+
+                const { data } = await supabase
+                    .from('user_limits')
+                    .select('plan, access_until')
+                    .eq('user_id', user.id)
+                    .single();
+
+                if (mounted) {
+                    setHasActiveSubscription(
+                        Boolean(data?.plan && data.access_until && new Date(data.access_until) > new Date()),
+                    );
+                    setSubscriptionLoading(false);
+                }
+            }
+
+            loadSubscription().catch(() => {
+                if (mounted) {
+                    setHasActiveSubscription(false);
+                    setSubscriptionLoading(false);
+                }
+            });
+
+            return () => {
+                mounted = false;
+            };
+        }, []),
+    );
+
+    const openPaywall = () => {
+        router.push('/paywall');
+    };
 
     const showMessage = (message: string) => {
         if (Platform.OS === 'web') {
@@ -79,6 +130,11 @@ export default function ScanScreen() {
     };
 
     const openCamera = async () => {
+        if (!hasActiveSubscription) {
+            openPaywall();
+            return;
+        }
+
         try {
             setLoading(true);
 
@@ -114,6 +170,11 @@ export default function ScanScreen() {
     };
 
     const selectImage = async () => {
+        if (!hasActiveSubscription) {
+            openPaywall();
+            return;
+        }
+
         try {
             setLoading(true);
 
@@ -143,6 +204,11 @@ export default function ScanScreen() {
     };
 
     const analyzeImage = async () => {
+        if (!hasActiveSubscription) {
+            openPaywall();
+            return;
+        }
+
         if (!imageUri || !imageBase64) {
             showMessage(
                 'Please take a photo or choose an image before starting the analysis.',
@@ -249,6 +315,44 @@ export default function ScanScreen() {
             setAnalyzing(false);
         }
     };
+
+    if (subscriptionLoading) {
+        return (
+            <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: theme.background }]}>
+                <ActivityIndicator color={theme.accentDark} />
+            </SafeAreaView>
+        );
+    }
+
+    if (!hasActiveSubscription) {
+        return (
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+                <View style={styles.lockedHeader}>
+                    <TouchableOpacity accessibilityLabel="Go back" onPress={() => router.back()}>
+                        <Ionicons name="arrow-back" size={24} color={theme.text} />
+                    </TouchableOpacity>
+                    <Text style={[styles.title, { color: theme.text }]}>Poultry Scan</Text>
+                    <View style={styles.headerSpacer} />
+                </View>
+                <View style={styles.lockedContent}>
+                    <View style={[styles.lockIcon, { backgroundColor: theme.accentDark + '18' }]}>
+                        <Ionicons name="lock-closed-outline" size={32} color={theme.accentDark} />
+                    </View>
+                    <Text style={[styles.lockedTitle, { color: theme.text }]}>Subscription required</Text>
+                    <Text style={[styles.lockedMessage, { color: theme.textMuted }]}>
+                        Subscribe to use poultry photo analysis and get guidance on your birds.
+                    </Text>
+                    <TouchableOpacity
+                        accessibilityRole="button"
+                        onPress={openPaywall}
+                        style={[styles.subscribeButton, { backgroundColor: theme.accentDark }]}
+                    >
+                        <Text style={styles.subscribeButtonText}>View subscription plans</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView
@@ -719,7 +823,7 @@ export default function ScanScreen() {
                                 { color: theme.text },
                             ]}
                         >
-                            Your flock's health matters
+                            Your flock&apos;s health matters
                         </Text>
 
                         <Text
@@ -742,6 +846,66 @@ export default function ScanScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+
+    centered: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    lockedHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 18,
+        paddingTop: 16,
+    },
+
+    headerSpacer: {
+        width: 24,
+    },
+
+    lockedContent: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 32,
+    },
+
+    lockIcon: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+
+    lockedTitle: {
+        fontSize: 22,
+        fontWeight: '700',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+
+    lockedMessage: {
+        fontSize: 15,
+        lineHeight: 22,
+        maxWidth: 360,
+        textAlign: 'center',
+        marginBottom: 24,
+    },
+
+    subscribeButton: {
+        borderRadius: 10,
+        paddingHorizontal: 20,
+        paddingVertical: 13,
+    },
+
+    subscribeButtonText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
     },
 
     content: {

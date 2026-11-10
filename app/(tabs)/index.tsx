@@ -33,6 +33,7 @@ export default function HomeScreen() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [medications, setMedications] = useState<BatchMedication[]>([])
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
 
   useFocusEffect(
@@ -196,19 +197,16 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.header}>
+        <View style={styles.header}>
           <Text style={[styles.headerTitle, { color: theme.text }]}>Poultriz</Text>
-          <View style={{ flexDirection: 'row', gap: 16 }}>
-            <TouchableOpacity onPress={() => router.push('../farm-wrapped')}>
-              <Ionicons name="sparkles-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/batch-profit')}>
-              <Ionicons name="stats-chart-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/feed-calculator')}>
-              <Ionicons name="calculator-outline" size={24} color={theme.text} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            accessibilityLabel="Open home menu"
+            accessibilityRole="button"
+            onPress={() => setDrawerOpen(true)}
+            style={styles.menuButton}
+          >
+            <Ionicons name="menu-outline" size={28} color={theme.text} />
+          </TouchableOpacity>
         </View>
         <MedicationBanner items={medications} onPress={() => router.push('/medication-schedule')} />
 
@@ -287,6 +285,81 @@ export default function HomeScreen() {
           </View>
         )}
       </ScrollView>
+
+      {drawerOpen && (
+        <View style={styles.drawerLayer}>
+          <TouchableOpacity
+            accessibilityLabel="Close home menu"
+            accessibilityRole="button"
+            onPress={() => setDrawerOpen(false)}
+            style={styles.drawerBackdrop}
+          />
+          <View style={[styles.drawer, { backgroundColor: theme.cardBackground }]}>
+            <View style={styles.drawerHeader}>
+              <Text style={[styles.drawerTitle, { color: theme.text }]}>Quick actions</Text>
+              <TouchableOpacity
+                accessibilityLabel="Close home menu"
+                accessibilityRole="button"
+                onPress={() => setDrawerOpen(false)}
+              >
+                <Ionicons name="close-outline" size={26} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              accessibilityLabel="Open Farm Wrapped"
+              accessibilityRole="button"
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push('../farm-wrapped');
+              }}
+              style={styles.drawerItem}
+            >
+              <Ionicons name="sparkles-outline" size={24} color={theme.accentDark} />
+              <Text style={[styles.drawerItemText, { color: theme.text }]}>Farm Wrapped</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityLabel="Open Batch Profit"
+              accessibilityRole="button"
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push('/batch-profit');
+              }}
+              style={styles.drawerItem}
+            >
+              <Ionicons name="stats-chart-outline" size={24} color={theme.accentDark} />
+              <Text style={[styles.drawerItemText, { color: theme.text }]}>Batch Profit</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityLabel="Open Feed Calculator"
+              accessibilityRole="button"
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push('/feed-calculator');
+              }}
+              style={styles.drawerItem}
+            >
+              <Ionicons name="calculator-outline" size={24} color={theme.accentDark} />
+              <Text style={[styles.drawerItemText, { color: theme.text }]}>Feed Calculator</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              accessibilityLabel="Open Temperature Guide"
+              accessibilityRole="button"
+              onPress={() => {
+                setDrawerOpen(false);
+                router.push('/temperature-guide');
+              }}
+              style={styles.drawerItem}
+            >
+              <Ionicons name="thermometer-outline" size={24} color={theme.accentDark} />
+              <Text style={[styles.drawerItemText, { color: theme.text }]}>Temperature Guide</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -296,6 +369,30 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   headerTitle: { fontSize: 24, fontWeight: 'bold' },
+  menuButton: { padding: 4 },
+  drawerLayer: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 10,
+    flexDirection: 'row',
+  },
+  drawerBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
+  drawer: {
+    width: 280,
+    padding: 20,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: -2, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  drawerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 },
+  drawerTitle: { fontSize: 20, fontWeight: '700' },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 16 },
+  drawerItemText: { fontSize: 16, fontWeight: '600' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   statCard: { width: '47%', backgroundColor: '#F2F2F2', borderRadius: 16, padding: 16 },
   statHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },

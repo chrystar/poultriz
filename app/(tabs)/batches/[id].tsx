@@ -13,6 +13,15 @@ import { useTheme } from '../../../context/ThemeContext';
 import { supabase } from '../../../lib/supabase';
 
 const DEFAULT_CRATE_SIZE = 30;
+type BatchTab = 'overview' | 'feed';
+const EXPECTED_BROILER_WEIGHTS = [
+  { day: 7, weight: 0.18 },
+  { day: 14, weight: 0.45 },
+  { day: 21, weight: 0.85 },
+  { day: 28, weight: 1.35 },
+  { day: 34, weight: 1.75 },
+  { day: 42, weight: 2.3 },
+];
 
 export default function BatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -26,11 +35,7 @@ export default function BatchDetailScreen() {
   const [eggLogs, setEggLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
-
-  const [recordModalVisible, setRecordModalVisible] = useState(false);
-  const [mortalityCount, setMortalityCount] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<BatchTab>('overview');
 
   // Feed Log form state
   const [feedModalVisible, setFeedModalVisible] = useState(false);
@@ -117,29 +122,6 @@ export default function BatchDetailScreen() {
       .reduce((sum, sale) => sum + Number(sale.quantity ?? 0), 0),
     [sales]
   );
-
-  async function handleAddRecord() {
-    const today = new Date().toISOString().split('T')[0];
-    const existing = records.find((r) => r.record_date === today);
-    if (existing) {
-      Alert.alert('Already logged', 'You already added a record for today.');
-      return;
-    }
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    const { error } = await supabase.from('daily_records').insert({
-      batch_id: id,
-      user_id: user?.id,
-      record_date: today,
-      mortality_count: mortalityCount ? parseInt(mortalityCount, 10) : 0,
-      notes,
-    });
-    setSaving(false);
-    if (error) { Alert.alert('Error', error.message); return; }
-    setMortalityCount(''); setNotes('');
-    setRecordModalVisible(false);
-    loadDetail();
-  }
 
   async function handleChangeStartDate(event: any, selectedDate?: Date) {
     setDatePickerVisible(false);
@@ -293,6 +275,33 @@ export default function BatchDetailScreen() {
       .eq('batch_id', id)
       .order('log_date', { ascending: false });
 
+    const reportDaysSince = Math.max(
+      0,
+      Math.floor(
+        ((batch.status === 'completed' && batch.completed_at ? new Date(batch.completed_at) : new Date()).getTime()
+          - new Date(batch.start_date).getTime()) /
+          (1000 * 60 * 60 * 24)
+      )
+    );
+    const reportDeaths = (fullRecords ?? []).reduce((sum, record) => sum + Number(record.mortality_count ?? 0), 0);
+    const reportMortalityRate = batch.bird_count > 0 ? (reportDeaths / batch.bird_count) * 100 : 0;
+    const reportFeedKg = (fullFeedLogs ?? []).reduce((sum, feed) => sum + Number(feed.total_kg ?? 0), 0);
+    const reportFeedBags = (fullFeedLogs ?? []).reduce((sum, feed) => sum + Number(feed.bag_count ?? 0), 0);
+    const weightRecords = (fullRecords ?? [])
+      .filter((record) => Number(record.avg_weight_kg) > 0)
+      .sort((a, b) => new Date(b.record_date).getTime() - new Date(a.record_date).getTime());
+    const latestWeight = weightRecords[0] ? Number(weightRecords[0].avg_weight_kg) : null;
+    const expectedWeight = EXPECTED_BROILER_WEIGHTS.reduce(
+      (closest, target) => target.day <= reportDaysSince ? target : closest,
+      EXPECTED_BROILER_WEIGHTS[0]
+    );
+    const weightDifference = latestWeight === null ? null : latestWeight - expectedWeight.weight;
+    const reportCurrentBirds = Math.max(0, Number(batch.bird_count ?? 0) - reportDeaths);
+    const estimatedLiveWeight = latestWeight === null ? null : latestWeight * reportCurrentBirds;
+    const feedConversionEstimate = estimatedLiveWeight && estimatedLiveWeight > 0
+      ? reportFeedKg / estimatedLiveWeight
+      : null;
+
     const expenseRows = (fullExpenses ?? [])
       .map((e) => `
         <tr>
@@ -352,6 +361,19 @@ export default function BatchDetailScreen() {
             <tbody>${eggRows || '<tr><td colspan="4">No eggs logged</td></tr>'}</tbody>
           </table>` : '';
 
+    const performanceSummary = `
+          <h2 style="color:#4CAF50;">Performance Summary</h2>
+          <table style="width:100%; border-collapse: collapse; margin-bottom: 24px;" border="1" cellpadding="8">
+            <tr><td><strong>Mortality</strong></td><td>${reportDeaths} birds (${reportMortalityRate.toFixed(1)}%)</td></tr>
+            <tr><td><strong>Feed consumed</strong></td><td>${Number(reportFeedKg.toFixed(2))} kg (${reportFeedBags} bags)</td></tr>
+            <tr><td><strong>Latest average weight</strong></td><td>${latestWeight === null ? 'No weight recorded' : `${latestWeight.toFixed(3)} kg (${weightRecords[0].record_date})`}</td></tr>
+            <tr><td><strong>Expected weight guide</strong></td><td>${expectedWeight.weight.toFixed(2)} kg at day ${expectedWeight.day}</td></tr>
+            <tr><td><strong>Weight performance</strong></td><td>${weightDifference === null ? 'Record a sample weight to compare' : `${weightDifference >= 0 ? '+' : ''}${weightDifference.toFixed(3)} kg vs guide`}</td></tr>
+            <tr><td><strong>Feed conversion estimate</strong></td><td>${feedConversionEstimate === null ? 'Unavailable — needs a saved average weight' : `${feedConversionEstimate.toFixed(2)} kg feed per kg current live weight`}</td></tr>
+            <tr style="background:#F2F2F2;"><td><strong>Profit / loss</strong></td><td><strong>₦${profit.toLocaleString()}</strong></td></tr>
+          </table>
+          <p style="color:#777; font-size:11px;">Feed conversion is an estimate based on feed consumed divided by estimated current live weight (average sample weight × surviving birds). It is not a laboratory FCR calculation.</p>`;
+
     const html = `
       <html>
         <body style="font-family: -apple-system, sans-serif; padding: 24px; color: #222;">
@@ -368,6 +390,7 @@ export default function BatchDetailScreen() {
             <tr><td><strong>Days</strong></td><td>${daysSince}</td></tr>
             <tr><td><strong>Initial Cost</strong></td><td>₦${(batch.cost ?? 0).toLocaleString()}</td></tr>
           </table>
+          ${performanceSummary}
 
           <h2 style="color:#4CAF50;">Financial Summary</h2>
           <table style="width:100%; border-collapse: collapse; margin-bottom: 24px;" border="1" cellpadding="8">
@@ -443,17 +466,12 @@ export default function BatchDetailScreen() {
   );
   const profit = totalRevenue - totalExpenses - (batch.cost ?? 0);
   const isLayer = batch.bird_type === 'layer';
-  const mortalityRate = batch.bird_count > 0 ? (totalDeaths / batch.bird_count) * 100 : 0;
   const currentBirds = Math.max(0, Number(batch.bird_count ?? 0) - totalDeaths - totalSoldBirds);
 
   const lastFeed = feedLogs[0];
   const lastEgg = eggLogs[0];
-  const lastRecord = records[0];
   const latestFeed = lastFeed ? `${lastFeed.log_date} • ${lastFeed.bag_count} × ${lastFeed.bag_size_kg}kg` : null;
   const latestEgg = lastEgg ? `${lastEgg.log_date} • ${lastEgg.total_eggs} eggs` : null;
-  const latestRecord = lastRecord
-    ? `${lastRecord.record_date} • ${lastRecord.mortality_count} death${Number(lastRecord.mortality_count) === 1 ? '' : 's'}`
-    : null;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
@@ -497,25 +515,80 @@ export default function BatchDetailScreen() {
           </View>
         </View>
 
+        <View style={[styles.tabRow, { backgroundColor: theme.cardBackgroundAlt }]}>
+          {([
+            { key: 'overview' as const, label: 'Overview', icon: 'grid-outline' as const },
+            { key: 'feed' as const, label: 'Feed log', icon: 'nutrition-outline' as const },
+          ]).map((tab) => {
+            const active = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tabButton, active && { backgroundColor: theme.accentDark }]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Ionicons name={tab.icon} size={16} color={active ? '#fff' : theme.textMuted} />
+                <Text style={[styles.tabText, { color: active ? '#fff' : theme.textMuted }]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {activeTab === 'feed' ? (
+          <>
+            <View style={styles.feedTabHeader}>
+              <View>
+                <Text style={[styles.sectionEyebrow, { color: theme.textMuted, marginBottom: 3 }]}>FEED ACTIVITY</Text>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>Keep feed records up to date</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.addFeedButton, { backgroundColor: theme.accentDark }]}
+                onPress={() => setFeedModalVisible(true)}
+              >
+                <Ionicons name="add" size={18} color="#fff" />
+                <Text style={styles.addFeedButtonText}>Add feed</Text>
+              </TouchableOpacity>
+            </View>
+            <LogSummaryCard
+              stats={[
+                { label: 'Total Fed', value: `${Number(totalFeedKg.toFixed(2))}kg` },
+                { label: 'Bags', value: String(totalFeedBags) },
+                { label: 'Spent', value: `₦${totalFeedCost.toLocaleString()}` },
+              ]}
+              count={feedLogs.length}
+              latest={latestFeed}
+              emptyText="No feed logged yet. Add your first feed entry here."
+              onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
+            />
+            <TouchableOpacity
+              style={[styles.viewLogButton, { borderColor: theme.border }]}
+              onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
+            >
+              <Text style={[styles.viewLogButtonText, { color: theme.accentDark }]}>View full feed history</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.accentDark} />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
         <Text style={[styles.sectionEyebrow, { color: theme.textMuted }]}>QUICK ACTIONS</Text>
         <View style={styles.quickActionsGrid}>
           <TouchableOpacity
             style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
-            onPress={() => setFeedModalVisible(true)}
-          >
-            <View style={[styles.quickActionIcon, { backgroundColor: '#E7F4D5' }]}>
-              <Ionicons name="nutrition-outline" size={20} color={theme.accentDark} />
-            </View>
-            <Text style={[styles.quickActionLabel, { color: theme.text }]}>Add feed</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
-            onPress={() => setRecordModalVisible(true)}
+            onPress={() => router.push({ pathname: '/daily-records', params: { batchId: id } })}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: '#FFF0D6' }]}>
               <Ionicons name="clipboard-outline" size={20} color="#C47B13" />
             </View>
             <Text style={[styles.quickActionLabel, { color: theme.text }]}>Add record</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickAction, { backgroundColor: theme.cardBackgroundAlt }]}
+            onPress={() => router.push({ pathname: '/bird-weight', params: { batchId: id } })}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#E4F0FF' }]}>
+              <Ionicons name="scale-outline" size={20} color="#356CB3" />
+            </View>
+            <Text style={[styles.quickActionLabel, { color: theme.text }]}>Weigh birds</Text>
           </TouchableOpacity>
           {isLayer && (
             <TouchableOpacity
@@ -538,22 +611,6 @@ export default function BatchDetailScreen() {
             <Text style={[styles.quickActionLabel, { color: theme.text }]}>Share report</Text>
           </TouchableOpacity>
         </View>
-
-        <Text style={[styles.sectionEyebrow, { color: theme.textMuted }]}>FEED ACTIVITY</Text>
-        <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Feed Log</Text>
-        </View>
-        <LogSummaryCard
-          stats={[
-            { label: 'Total Fed', value: `${Number(totalFeedKg.toFixed(2))}kg` },
-            { label: 'Bags', value: String(totalFeedBags) },
-            { label: 'Spent', value: `₦${totalFeedCost.toLocaleString()}` },
-          ]}
-          count={feedLogs.length}
-          latest={latestFeed}
-          emptyText="No feed logged yet. Tap 'Add Feed' when you buy or give out feed."
-          onPress={() => router.push({ pathname: '/feed-log', params: { batchId: id } })}
-        />
 
         <Text style={[styles.sectionEyebrow, { color: theme.textMuted, marginTop: 22 }]}>OVERVIEW</Text>
 
@@ -589,34 +646,6 @@ export default function BatchDetailScreen() {
           </View>
         </View>
 
-        <View style={[styles.profitCard, { backgroundColor: theme.cardBackgroundAlt }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text, marginBottom: 12 }]}>Financials</Text>
-          <View style={styles.financeRow}>
-            <View style={styles.financeItem}>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>Revenue</Text>
-              <Text style={[styles.financeValue, { color: theme.accentDark }]}>₦{totalRevenue.toLocaleString()}</Text>
-            </View>
-            <View style={styles.financeItem}>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>Expenses</Text>
-              <Text style={[styles.financeValue, { color: theme.danger }]}>₦{totalExpenses.toLocaleString()}</Text>
-            </View>
-            <View style={styles.financeItem}>
-              <Text style={[styles.statLabel, { color: theme.textMuted }]}>Profit</Text>
-              <Text style={[styles.financeValue, { color: profit >= 0 ? theme.accentDark : theme.danger }]}>
-                ₦{profit.toLocaleString()}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.activityHeading}>
-          <View>
-            <Text style={[styles.sectionEyebrow, { color: theme.textMuted, marginBottom: 3 }]}>OTHER ACTIVITY</Text>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent logs</Text>
-          </View>
-          <Text style={[styles.activityHint, { color: theme.textMuted }]}>Tap a card to view all</Text>
-        </View>
-
         {/* Egg Log — layer batches only */}
         {isLayer && (
           <>
@@ -637,56 +666,8 @@ export default function BatchDetailScreen() {
           </>
         )}
 
-        {/* Daily Records */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Daily Records</Text>
-        </View>
-        <LogSummaryCard
-          stats={[
-            { label: 'Records', value: String(records.length) },
-            { label: 'Deaths', value: String(totalDeaths) },
-            { label: 'Mortality', value: `${mortalityRate.toFixed(1)}%` },
-          ]}
-          count={records.length}
-          latest={latestRecord}
-          emptyText="No daily records yet. Tap 'Add Record' to log today's mortality."
-          onPress={() => router.push({ pathname: '/daily-records', params: { batchId: id } })}
-        />
-
-        {/* Add Daily Record modal */}
-        <Modal visible={recordModalVisible} animationType="slide" transparent>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback>
-                <View style={[styles.modalContent, { backgroundColor: theme.background }]}>
-                  <Text style={[styles.modalTitle, { color: theme.text }]}>Add Daily Record</Text>
-                  <Text style={[styles.modalSubtitle, { color: theme.textFaint }]}>Date: {new Date().toISOString().split('T')[0]}</Text>
-                  <TextInput
-                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                    placeholder="Number of deaths today"
-                    placeholderTextColor={theme.textFaint}
-                    keyboardType="numeric"
-                    value={mortalityCount}
-                    onChangeText={setMortalityCount}
-                  />
-                  <TextInput
-                    style={[styles.input, { borderColor: theme.border, color: theme.text }]}
-                    placeholder="Notes (optional)"
-                    placeholderTextColor={theme.textFaint}
-                    value={notes}
-                    onChangeText={setNotes}
-                  />
-                  <TouchableOpacity style={styles.saveButton} onPress={handleAddRecord} disabled={saving}>
-                    <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save Record'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setRecordModalVisible(false)}>
-                    <Text style={[styles.cancelText, { color: theme.textFaint }]}>Cancel</Text>
-                  </TouchableOpacity>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
+          </>
+        )}
 
         {/* Add Feed Log modal */}
         <Modal visible={feedModalVisible} animationType="slide" transparent>
@@ -890,13 +871,19 @@ const styles = StyleSheet.create({
   infoCard: { borderRadius: 16, padding: 16, marginBottom: 16 },
   infoTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   infoSource: { fontSize: 15 },
+  tabRow: { flexDirection: 'row', gap: 8, borderRadius: 14, padding: 4, marginBottom: 20 },
+  tabButton: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6, borderRadius: 10, paddingVertical: 11 },
+  tabText: { fontSize: 13, fontWeight: '700' },
   sectionEyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 },
+  feedTabHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 },
+  addFeedButton: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
+  addFeedButtonText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  viewLogButton: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4, borderWidth: 1, borderRadius: 12, paddingVertical: 12, marginBottom: 12 },
+  viewLogButtonText: { fontSize: 13, fontWeight: '700' },
   quickActionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 22 },
   quickAction: { width: '48%', minHeight: 70, borderRadius: 14, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   quickActionIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
   quickActionLabel: { fontSize: 13, fontWeight: '700', flexShrink: 1 },
-  activityHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 4, marginBottom: 14 },
-  activityHint: { fontSize: 11, marginBottom: 2 },
   breedTag: { backgroundColor: '#FFE0B2', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4 },
   breedTagText: { color: '#E65100', fontWeight: '600', fontSize: 12 },
   divider: { height: 1, marginVertical: 12 },
@@ -915,10 +902,6 @@ const styles = StyleSheet.create({
   birdFlowEquals: { fontSize: 18, marginHorizontal: 2 },
   currentBirdsPill: { alignItems: 'center', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7, minWidth: 54 },
   currentBirdsValue: { fontSize: 20, fontWeight: '800' },
-  profitCard: { borderRadius: 16, padding: 16, marginBottom: 24 },
-  financeRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  financeItem: { flex: 1 },
-  financeValue: { fontSize: 16, fontWeight: '700', marginTop: 4 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sectionTitle: { fontSize: 16, fontWeight: '700' },
   addRecordButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#B9E37D', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
